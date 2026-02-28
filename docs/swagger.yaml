@@ -1,0 +1,28 @@
+definitions:
+  health.HealthResponse:
+    properties:
+      message:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Backend for richmond app
+  title: richmond-api
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Returns health status of the API
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/health.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+swagger: "2.0"
