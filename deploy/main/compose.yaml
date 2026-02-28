@@ -1,0 +1,46 @@
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.0-alpha.83
+    container_name: rustfs
+    restart: unless-stopped
+    user: root
+    environment:
+      - RUSTFS_ACCESS_KEY=${AUTH_USER}
+      - RUSTFS_SECRET_KEY=${AUTH_PASS}
+    ports:
+      - "9900:9000"
+      - "9901:9001"
+    volumes:
+      - /mnt/storage/richmond/rustfs/data:/data
+      - /mnt/storage/richmond/rustfs/logs:/logs
+    depends_on:
+      - postgres
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${AUTH_USER}
+      - POSTGRES_PASSWORD=${AUTH_PASS}
+      - POSTGRES_DB=main
+    ports:
+      - "9903:5432"
+    volumes:
+      - /mnt/storage/richmond/postgres/data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M

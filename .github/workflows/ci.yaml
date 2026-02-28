@@ -1,0 +1,46 @@
+name: ci-workflow
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy 🚀
+    runs-on: ubuntu:22.04
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      - name: Get short SHA
+        id: vars
+        run: echo "sha_short=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Check if compose.yaml changed
+        id: vars_compose
+        run: echo "compose_changed=$(git diff --name-only HEAD^ HEAD | grep deploy/main/compose.yaml | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Run playbook
+        uses: dawidd6/action-ansible-playbook@v5
+        with:
+          playbook: deploy.yaml
+          directory: deploy
+          configuration: |
+            [defaults]
+            callbacks_enabled = ansible.posix.profile_tasks, ansible.posix.timer
+            callback_result_format = yaml
+            interpreter_python = /usr/bin/python
+            [ssh_connection]
+            retries=5
+          vault_password: ${{ secrets.ANSIBLE_PASS }}
+          inventory: ${{ secrets.ANSIBLE_HOSTS }}
+          options: |
+            --limit ${{ vars.SERVER_GROUP }}
+            --verbose
+            --extra-vars "
+            COMPOSE_CHANGED=${{ steps.vars_compose.outputs.compose_changed }}
+            AUTH_USER=${{ secrets.AUTH_USER }}
+            AUTH_PASS=${{ secrets.AUTH_PASS }}
+            "
