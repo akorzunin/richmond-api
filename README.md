@@ -14,8 +14,13 @@ build binary
 go build -o ./build/richmond-api
 ```
 
-## OpenAPI Docs
+### Run DB and s3 in docker
 
+```bash
+AUTH_USER=admin AUTH_PASS=admin docker compose -f ./deploy/compose.yaml up -d rustfs postgres
+```
+
+## OpenAPI Docs
 
 Install Dependencies
 

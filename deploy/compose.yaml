@@ -18,7 +18,7 @@ services:
 
   rustfs:
     image: rustfs/rustfs:1.0.0-alpha.83
-    container_name: rustfs
+    container_name: richmond-rustfs
     restart: unless-stopped
     user: root
     environment:
@@ -43,7 +43,7 @@ services:
 
   postgres:
     image: postgres:18-alpine
-    container_name: postgres
+    container_name: richmond-postgres
     restart: unless-stopped
     environment:
       - POSTGRES_USER=${AUTH_USER}
