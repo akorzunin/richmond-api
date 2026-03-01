@@ -21,8 +21,8 @@
         dest: "{{ project_dir }}"
         mode: "0644"
 
-    - name: "Deploy rustfs and postgres"
-      when: {{ COMPOSE_CHANGED }}
+    - name: Deploy rustfs and postgres
+      when: COMPOSE_CHANGED
       ansible.builtin.command:
         cmd: docker compose up -d rustfs postgres
         chdir: "{{ project_dir }}"
@@ -31,6 +31,15 @@
         AUTH_PASS: "{{ AUTH_PASS }}"
       register: out
       changed_when: out.rc != 0
+
+    - name: Deploy richmond-api
+      ansible.builtin.command:
+        cmd: docker compose up -d richmond-api
+        chdir: "{{ project_dir }}"
+      environment:
+        IMAGE_TAG: "{{ IMAGE_TAG }}"
+      register: out
+      changed_when: out.rc == 0
 
     - name: Remove old version of image
       ansible.builtin.command:
