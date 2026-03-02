@@ -1,7 +1,42 @@
 definitions:
-  health.HealthResponse:
+  internal_api_health.HealthResponse:
     properties:
       message:
+        type: string
+    type: object
+  internal_api_user.CreateRequest:
+    properties:
+      login:
+        type: string
+      password:
+        type: string
+    required:
+    - login
+    - password
+    type: object
+  internal_api_user.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  internal_api_user.LoginRequest:
+    properties:
+      login:
+        type: string
+      password:
+        type: string
+    required:
+    - login
+    - password
+    type: object
+  internal_api_user.TokenResponse:
+    properties:
+      token:
+        type: string
+    type: object
+  internal_api_user.UserResponse:
+    properties:
+      login:
         type: string
     type: object
 info:
@@ -10,6 +45,84 @@ info:
   title: richmond-api
   version: 0.1.0
 paths:
+  /api/v1/user:
+    get:
+      description: Returns user data for authenticated user
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_user.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_user.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - user
+  /api/v1/user/login:
+    post:
+      consumes:
+      - application/json
+      description: Login with credentials, returns auth token
+      parameters:
+      - description: User credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_user.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_user.TokenResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api_user.ErrorResponse'
+      summary: Login
+      tags:
+      - user
+  /api/v1/user/new:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user with hashed password
+      parameters:
+      - description: User credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_user.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_user.UserResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_api_user.ErrorResponse'
+      summary: Create a new user
+      tags:
+      - user
   /health:
     get:
       consumes:
@@ -21,7 +134,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/health.HealthResponse'
+            $ref: '#/definitions/internal_api_health.HealthResponse'
       summary: Health check
       tags:
       - health

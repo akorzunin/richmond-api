@@ -4,6 +4,17 @@
 
 package db
 
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type Session struct {
+	SessionID int32            `json:"session_id"`
+	UserID    int32            `json:"user_id"`
+	Token     string           `json:"token"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+}
+
 type User struct {
 	UserID   int32  `json:"user_id"`
 	UserName string `json:"user_name"`

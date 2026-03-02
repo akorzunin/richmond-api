@@ -43,6 +43,26 @@ This generates:
 Docs at:
 <http://localhost:8080/swagger/index.html>
 
+## Migrations ans sqlc
+
+Generate sqlc
+
+```bash
+sqlc generate
+```
+
+Run migrations locally
+
+```bash
+GOOSE_DRIVER=postgres GOOSE_DBSTRING=postgres://admin:admin@localhost:9903/main GOOSE_MIGRATION_DIR=./internal/db/schema goose up
+```
+
+Run migrations on host
+
+```bash
+GOOSE_DRIVER=postgres GOOSE_DBSTRING=postgres://${AUTH_USER}:${AUTH_PASS}@localhost:9903/main GOOSE_MIGRATION_DIR=./internal/db/schema ~/go/bin/goose up
+```
+
 ## License
 
 MIT
