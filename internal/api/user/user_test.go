@@ -8,10 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 	"richmond-api/internal/db"
 )
@@ -96,10 +94,7 @@ func setupTestRouter(mock *mockQuerier) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	// Create a wrapper that implements *db.Queries by embedding mock
-	// We need to use the handler directly since it expects *db.Queries
-	// We'll create a test handler that wraps our mock
-	handler := &testHandler{mock: mock}
+	handler := NewUserHandler(mock)
 
 	router.POST("/api/v1/user/new", handler.Create)
 	router.POST("/api/v1/user/login", handler.Login)
@@ -107,81 +102,7 @@ func setupTestRouter(mock *mockQuerier) *gin.Engine {
 	return router
 }
 
-// testHandler wraps mockQuerier to work with the Gin handler interface
-type testHandler struct {
-	mock *mockQuerier
-}
-
-func (h *testHandler) Create(c *gin.Context) {
-	var req CreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request"})
-		return
-	}
-
-	// Check if user exists
-	_, err := h.mock.GetUserByName(c.Request.Context(), req.Login)
-	if err == nil {
-		c.JSON(http.StatusConflict, ErrorResponse{Error: "user already exists"})
-		return
-	}
-
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to hash password"})
-		return
-	}
-
-	// Create user
-	user, err := h.mock.CreateUser(c.Request.Context(), db.CreateUserParams{
-		UserName: req.Login,
-		UserPass: string(hashedPassword),
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to create user"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, UserResponse{Login: user.UserName})
-}
-
-func (h *testHandler) Login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request"})
-		return
-	}
-
-	// Get user
-	user, err := h.mock.GetUserByName(c.Request.Context(), req.Login)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "invalid credentials"})
-		return
-	}
-
-	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPass), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "invalid credentials"})
-		return
-	}
-
-	// Create session token
-	token := "test-token-123"
-	expiresAt := pgtype.Timestamp{Time: time.Now().Add(1 * time.Hour), Valid: true}
-
-	_, err = h.mock.CreateSession(c.Request.Context(), db.CreateSessionParams{
-		UserID:    user.UserID,
-		Token:     token,
-		ExpiresAt: expiresAt,
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to create session"})
-		return
-	}
-
-	c.JSON(http.StatusOK, TokenResponse{Token: token})
-}
+// testHandler is no longer needed - using UserHandler directly
 
 func TestCreateUser_Success(t *testing.T) {
 	mock := newMockQuerier()

@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -34,11 +35,18 @@ type TokenResponse struct {
 	Token string `json:"token"`
 }
 
-type UserHandler struct {
-	queries *db.Queries
+type Querier interface {
+	GetUserByName(ctx context.Context, userName string) (db.User, error)
+	GetUserByID(ctx context.Context, userID int32) (db.User, error)
+	CreateUser(ctx context.Context, params db.CreateUserParams) (db.User, error)
+	CreateSession(ctx context.Context, params db.CreateSessionParams) (db.Session, error)
 }
 
-func NewUserHandler(queries *db.Queries) *UserHandler {
+type UserHandler struct {
+	queries Querier
+}
+
+func NewUserHandler(queries Querier) *UserHandler {
 	return &UserHandler{queries: queries}
 }
 
