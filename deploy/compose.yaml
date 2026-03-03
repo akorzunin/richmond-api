@@ -28,8 +28,8 @@ services:
       - "9900:9000"
       - "9901:9001"
     volumes:
-      - /mnt/storage/richmond/rustfs/data:/data
-      - /mnt/storage/richmond/rustfs/logs:/logs
+      - ${DATA_DIR:-/mnt/storage/richmond/rustfs/data}:/data
+      - ${DATA_DIR:-/mnt/storage/richmond/rustfs/logs}:/logs
     depends_on:
       - postgres
     deploy:
@@ -53,7 +53,7 @@ services:
     ports:
       - "9903:5432"
     volumes:
-      - /mnt/storage/richmond/postgres:/var/lib/postgresql
+      - ${DATA_DIR:-/mnt/storage/richmond/postgres}:/var/lib/postgresql
     deploy:
       resources:
         limits:

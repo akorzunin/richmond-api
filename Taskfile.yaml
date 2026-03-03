@@ -1,0 +1,76 @@
+version: "3"
+
+dotenv: ['.env']
+
+tasks:
+  default:
+    cmds:
+      - task: lint
+      - task: test
+
+  lint:
+    desc: Run prek
+    aliases: [l]
+    cmds:
+      - prek run --all-files
+
+  test:
+    desc: Run tests
+    aliases: [t]
+    cmds:
+      - go test ./... -v
+
+  setup:
+    desc: Setup project
+    cmds:
+      - cmd: cp .env.example .env
+        if: '[ ! -f ".env" ]'
+      - cmd: go mod tidy
+      - cmd: go install github.com/swaggo/swag/cmd/swag@v1.16.6
+        if: '[ -z "$(which swag)" ]'
+      - cmd: go install github.com/air-verse/air@latest
+        if: '[ -z "$(which air)" ]'
+      - cmd: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+        if: '[ -z "$(which sqlc)" ]'
+      - cmd: go install github.com/pressly/goose/v3/cmd/goose@latest
+        if: '[ -z "$(which goose)" ]'
+      - cmd: echo "Add ~/go/bin to PATH"; exit 1
+        if: '[ -z "$(which swag)" ]'
+
+  migrate:
+    desc: Run migrations
+    aliases: [m]
+    environment:
+      - GOOSE_DRIVER=postgres
+      - GOOSE_DBSTRING=postgres://admin:admin@localhost:9903/main
+      - GOOSE_MIGRATION_DIR=./internal/db/schema
+    cmds:
+      - goose up
+
+  generate:
+    desc: Run codegan tools
+    aliases: [g]
+    deps:
+      - setup
+    cmds:
+      - sqlc generate
+      - swag init --parseDependency --parseInternal -g cmd/main.go
+
+  compose-dev:
+    desc: Run dev server
+    aliases: [c]
+    env:
+      AUTH_PASS: admin
+      AUTH_USER: admin
+      DATA_DIR: ../.data
+    cmds:
+      - docker compose -f ./deploy/compose.yaml up -d rustfs postgres --wait
+
+  dev:
+    desc: Run dev server
+    aliases: [d]
+    deps:
+      - setup
+      - compose-dev
+    cmds:
+      - air
