@@ -4,7 +4,7 @@ VALUES ($1, $2, $3)
 RETURNING session_id, user_id, token, expires_at;
 
 -- name: GetSessionByToken :one
-SELECT session_id, user_id, token, expires_at FROM sessions 
+SELECT session_id, user_id, token, expires_at FROM sessions
 WHERE token = $1 AND expires_at > NOW();
 
 -- name: DeleteSession :exec
