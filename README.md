@@ -27,6 +27,9 @@ Install Dependencies
 ```bash
 go mod download
 go install github.com/swaggo/swag/v2/cmd/swag@latest
+go install github.com/air-verse/air@latest
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
 After adding/modifying endpoints, regenerate the OpenAPI spec:
