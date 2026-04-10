@@ -7,6 +7,13 @@ services:
       - "9902:8080"
     depends_on:
       - postgres
+    environment:
+      - PG_ADDRESS=postgres:5432
+      - PG_USER=${AUTH_USER}
+      - PG_PASS=${AUTH_PASS}
+      - S3_ADDRESS=rustfs:9000
+      - S3_ACCESS_KEY=${AUTH_USER}
+      - S3_SECRET_KEY=${AUTH_PASS}
     deploy:
       resources:
         limits:
