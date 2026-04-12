@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	e "richmond-api/internal/api/errors"
 	"richmond-api/internal/db"
 
 	"github.com/gin-gonic/gin"
@@ -39,7 +40,10 @@ type Querier interface {
 	GetUserByName(ctx context.Context, userName string) (db.User, error)
 	GetUserByID(ctx context.Context, userID int32) (db.User, error)
 	CreateUser(ctx context.Context, params db.CreateUserParams) (db.User, error)
-	CreateSession(ctx context.Context, params db.CreateSessionParams) (db.Session, error)
+	CreateSession(
+		ctx context.Context,
+		params db.CreateSessionParams,
+	) (db.Session, error)
 }
 
 type UserHandler struct {
@@ -57,19 +61,25 @@ func NewUserHandler(queries Querier) *UserHandler {
 // @Produce json
 // @Param request body CreateRequest true "User credentials"
 // @Success 201 {object} UserResponse
-// @Failure 409 {object} ErrorResponse
+// @Failure 409 {object} e.ErrorResponse
 // @Router /api/v1/user/new [post]
 func (h *UserHandler) Create(c *gin.Context) {
 	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request"})
+		c.JSON(
+			http.StatusBadRequest,
+			e.ErrorResponse{Error: "invalid request"},
+		)
 		return
 	}
 
 	// Check if user exists
 	_, err := h.queries.GetUserByName(c.Request.Context(), req.Login)
 	if err == nil {
-		c.JSON(http.StatusConflict, ErrorResponse{Error: "user already exists"})
+		c.JSON(
+			http.StatusConflict,
+			e.ErrorResponse{Error: "user already exists"},
+		)
 		return
 	}
 
@@ -81,7 +91,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 	if err != nil {
 		c.JSON(
 			http.StatusInternalServerError,
-			ErrorResponse{Error: "failed to hash password"},
+			e.ErrorResponse{Error: "failed to hash password"},
 		)
 		return
 	}
@@ -94,7 +104,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 	if err != nil {
 		c.JSON(
 			http.StatusInternalServerError,
-			ErrorResponse{Error: "failed to create user"},
+			e.ErrorResponse{Error: "failed to create user"},
 		)
 		return
 	}
@@ -109,12 +119,12 @@ func (h *UserHandler) Create(c *gin.Context) {
 // @Produce json
 // @Param request body LoginRequest true "User credentials"
 // @Success 200 {object} TokenResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} e.ErrorResponse
 // @Router /api/v1/user/login [post]
 func (h *UserHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request"})
+		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: "invalid request"})
 		return
 	}
 
@@ -123,7 +133,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 	if err != nil {
 		c.JSON(
 			http.StatusUnauthorized,
-			ErrorResponse{Error: "invalid credentials"},
+			e.ErrorResponse{Error: "invalid credentials"},
 		)
 		return
 	}
@@ -132,7 +142,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPass), []byte(req.Password)); err != nil {
 		c.JSON(
 			http.StatusUnauthorized,
-			ErrorResponse{Error: "invalid credentials"},
+			e.ErrorResponse{Error: "invalid credentials"},
 		)
 		return
 	}
@@ -155,7 +165,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 	if err != nil {
 		c.JSON(
 			http.StatusInternalServerError,
-			ErrorResponse{Error: "failed to create session"},
+			e.ErrorResponse{Error: "failed to create session"},
 		)
 		return
 	}
@@ -167,27 +177,23 @@ func (h *UserHandler) Login(c *gin.Context) {
 // @Description Returns user data for authenticated user
 // @Tags user
 // @Produce json
-// @Security BearerAuth
 // @Success 200 {object} UserResponse
-// @Failure 401 {object} ErrorResponse
+// @Failure 401 {object} e.ErrorResponse
 // @Router /api/v1/user [get]
+// @Security BearerAuth
 // @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
 func (h *UserHandler) Get(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+		c.JSON(http.StatusUnauthorized, e.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
 	user, err := h.queries.GetUserByID(c.Request.Context(), userID.(int32))
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "user not found"})
+		c.JSON(http.StatusNotFound, e.ErrorResponse{Error: "user not found"})
 		return
 	}
 
 	c.JSON(http.StatusOK, UserResponse{Login: user.UserName})
-}
-
-type ErrorResponse struct {
-	Error string `json:"error"`
 }

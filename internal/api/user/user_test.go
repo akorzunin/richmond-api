@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	e "richmond-api/internal/api/errors"
+	"richmond-api/internal/db"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
-	"richmond-api/internal/db"
 )
 
 // mockQuerier implements db.Querier interface for testing
@@ -28,7 +30,10 @@ func newMockQuerier() *mockQuerier {
 	}
 }
 
-func (m *mockQuerier) GetUserByName(ctx context.Context, userName string) (db.User, error) {
+func (m *mockQuerier) GetUserByName(
+	ctx context.Context,
+	userName string,
+) (db.User, error) {
 	user, exists := m.users[userName]
 	if !exists {
 		return db.User{}, errors.New("user not found")
@@ -36,7 +41,10 @@ func (m *mockQuerier) GetUserByName(ctx context.Context, userName string) (db.Us
 	return user, nil
 }
 
-func (m *mockQuerier) GetUserByID(ctx context.Context, userID int32) (db.User, error) {
+func (m *mockQuerier) GetUserByID(
+	ctx context.Context,
+	userID int32,
+) (db.User, error) {
 	for _, user := range m.users {
 		if user.UserID == userID {
 			return user, nil
@@ -45,7 +53,10 @@ func (m *mockQuerier) GetUserByID(ctx context.Context, userID int32) (db.User, e
 	return db.User{}, errors.New("user not found")
 }
 
-func (m *mockQuerier) CreateUser(ctx context.Context, params db.CreateUserParams) (db.User, error) {
+func (m *mockQuerier) CreateUser(
+	ctx context.Context,
+	params db.CreateUserParams,
+) (db.User, error) {
 	user := db.User{
 		UserID:   1,
 		UserName: params.UserName,
@@ -55,7 +66,10 @@ func (m *mockQuerier) CreateUser(ctx context.Context, params db.CreateUserParams
 	return user, nil
 }
 
-func (m *mockQuerier) CreateSession(ctx context.Context, params db.CreateSessionParams) (db.Session, error) {
+func (m *mockQuerier) CreateSession(
+	ctx context.Context,
+	params db.CreateSessionParams,
+) (db.Session, error) {
 	m.sessionID++
 	session := db.Session{
 		SessionID: m.sessionID,
@@ -72,7 +86,10 @@ func (m *mockQuerier) DeleteSession(ctx context.Context, token string) error {
 	return nil
 }
 
-func (m *mockQuerier) DeleteUserSessions(ctx context.Context, userID int32) error {
+func (m *mockQuerier) DeleteUserSessions(
+	ctx context.Context,
+	userID int32,
+) error {
 	for token, session := range m.sessions {
 		if session.UserID == userID {
 			delete(m.sessions, token)
@@ -81,7 +98,10 @@ func (m *mockQuerier) DeleteUserSessions(ctx context.Context, userID int32) erro
 	return nil
 }
 
-func (m *mockQuerier) GetSessionByToken(ctx context.Context, token string) (db.Session, error) {
+func (m *mockQuerier) GetSessionByToken(
+	ctx context.Context,
+	token string,
+) (db.Session, error) {
 	session, exists := m.sessions[token]
 	if !exists {
 		return db.Session{}, errors.New("session not found")
@@ -102,8 +122,6 @@ func setupTestRouter(mock *mockQuerier) *gin.Engine {
 	return router
 }
 
-// testHandler is no longer needed - using UserHandler directly
-
 func TestCreateUser_Success(t *testing.T) {
 	mock := newMockQuerier()
 	router := setupTestRouter(mock)
@@ -114,7 +132,11 @@ func TestCreateUser_Success(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/user/new", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest(
+		"POST",
+		"/api/v1/user/new",
+		bytes.NewBuffer(jsonBody),
+	)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -134,7 +156,10 @@ func TestCreateUser_Success(t *testing.T) {
 func TestCreateUser_UserExists(t *testing.T) {
 	mock := newMockQuerier()
 	// Pre-add a user
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	hashedPassword, _ := bcrypt.GenerateFromPassword(
+		[]byte("password123"),
+		bcrypt.DefaultCost,
+	)
 	mock.users["existinguser"] = db.User{
 		UserID:   1,
 		UserName: "existinguser",
@@ -149,7 +174,11 @@ func TestCreateUser_UserExists(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/user/new", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest(
+		"POST",
+		"/api/v1/user/new",
+		bytes.NewBuffer(jsonBody),
+	)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -159,10 +188,13 @@ func TestCreateUser_UserExists(t *testing.T) {
 		t.Errorf("expected status 409, got %d", w.Code)
 	}
 
-	var response ErrorResponse
+	var response e.ErrorResponse
 	json.Unmarshal(w.Body.Bytes(), &response)
 	if response.Error != "user already exists" {
-		t.Errorf("expected error 'user already exists', got '%s'", response.Error)
+		t.Errorf(
+			"expected error 'user already exists', got '%s'",
+			response.Error,
+		)
 	}
 }
 
@@ -191,7 +223,11 @@ func TestCreateUser_InvalidRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jsonBody, _ := json.Marshal(tt.body)
-			req, _ := http.NewRequest("POST", "/api/v1/user/new", bytes.NewBuffer(jsonBody))
+			req, _ := http.NewRequest(
+				"POST",
+				"/api/v1/user/new",
+				bytes.NewBuffer(jsonBody),
+			)
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
@@ -207,7 +243,10 @@ func TestCreateUser_InvalidRequest(t *testing.T) {
 func TestLogin_Success(t *testing.T) {
 	mock := newMockQuerier()
 	// Pre-add a user with hashed password
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+	hashedPassword, _ := bcrypt.GenerateFromPassword(
+		[]byte("correctpassword"),
+		bcrypt.DefaultCost,
+	)
 	mock.users["testuser"] = db.User{
 		UserID:   1,
 		UserName: "testuser",
@@ -222,7 +261,11 @@ func TestLogin_Success(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/user/login", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest(
+		"POST",
+		"/api/v1/user/login",
+		bytes.NewBuffer(jsonBody),
+	)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -242,7 +285,10 @@ func TestLogin_Success(t *testing.T) {
 func TestLogin_InvalidCredentials(t *testing.T) {
 	mock := newMockQuerier()
 	// Pre-add a user with hashed password
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+	hashedPassword, _ := bcrypt.GenerateFromPassword(
+		[]byte("correctpassword"),
+		bcrypt.DefaultCost,
+	)
 	mock.users["testuser"] = db.User{
 		UserID:   1,
 		UserName: "testuser",
@@ -257,7 +303,11 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/user/login", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest(
+		"POST",
+		"/api/v1/user/login",
+		bytes.NewBuffer(jsonBody),
+	)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -267,10 +317,13 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 		t.Errorf("expected status 401, got %d", w.Code)
 	}
 
-	var response ErrorResponse
+	var response e.ErrorResponse
 	json.Unmarshal(w.Body.Bytes(), &response)
 	if response.Error != "invalid credentials" {
-		t.Errorf("expected error 'invalid credentials', got '%s'", response.Error)
+		t.Errorf(
+			"expected error 'invalid credentials', got '%s'",
+			response.Error,
+		)
 	}
 }
 
@@ -284,7 +337,11 @@ func TestLogin_UserNotFound(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/user/login", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest(
+		"POST",
+		"/api/v1/user/login",
+		bytes.NewBuffer(jsonBody),
+	)
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -294,9 +351,12 @@ func TestLogin_UserNotFound(t *testing.T) {
 		t.Errorf("expected status 401, got %d", w.Code)
 	}
 
-	var response ErrorResponse
+	var response e.ErrorResponse
 	json.Unmarshal(w.Body.Bytes(), &response)
 	if response.Error != "invalid credentials" {
-		t.Errorf("expected error 'invalid credentials', got '%s'", response.Error)
+		t.Errorf(
+			"expected error 'invalid credentials', got '%s'",
+			response.Error,
+		)
 	}
 }
