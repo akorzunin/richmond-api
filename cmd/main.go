@@ -6,6 +6,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "richmond-api/docs"
+	"richmond-api/internal/api/cat"
 	h "richmond-api/internal/api/health"
 	"richmond-api/internal/api/user"
 	"richmond-api/internal/db"
@@ -26,6 +27,7 @@ func main() {
 
 	// Initialize handlers
 	userHandler := user.NewUserHandler(queries)
+	catHandler := cat.NewCatHandler(queries)
 
 	r.GET("/health", h.Health)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -35,6 +37,10 @@ func main() {
 	v1.POST("/new", userHandler.Create)
 	v1.POST("/login", userHandler.Login)
 	v1.GET("", user.AuthMiddleware(queries), userHandler.Get)
+
+	// Cat API
+	catGroup := r.Group("/api/v1/cat")
+	catGroup.POST("/new", user.AuthMiddleware(queries), catHandler.CreateCat)
 
 	r.Run(":8080")
 }

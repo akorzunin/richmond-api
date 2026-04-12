@@ -2,7 +2,7 @@
 
 Backend for richmond app from <https://github.com/Lokrand/richmond>
 
-## Run
+## Run dev server at localhost:8080
 
 ```bash
 go run main.go

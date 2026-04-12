@@ -15,6 +15,74 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/cat/new": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new cat with photos (multipart/form-data)",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cat"
+                ],
+                "summary": "Create a new cat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JSON cat data",
+                        "name": "data",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "file"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Photo files (first is title photo)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "Bearer \u003cAdd access token here\u003e",
+                        "description": "Insert your access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_cat.CreateCatResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/richmond-api_internal_api_errors.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/richmond-api_internal_api_errors.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/user": {
             "get": {
                 "security": [
@@ -50,7 +118,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_user.ErrorResponse"
+                            "$ref": "#/definitions/richmond-api_internal_api_errors.ErrorResponse"
                         }
                     }
                 }
@@ -90,7 +158,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_user.ErrorResponse"
+                            "$ref": "#/definitions/richmond-api_internal_api_errors.ErrorResponse"
                         }
                     }
                 }
@@ -130,7 +198,7 @@ const docTemplate = `{
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_user.ErrorResponse"
+                            "$ref": "#/definitions/richmond-api_internal_api_errors.ErrorResponse"
                         }
                     }
                 }
@@ -161,6 +229,46 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "internal_api_cat.CreateCatResponse": {
+            "type": "object",
+            "properties": {
+                "cat_id": {
+                    "type": "string"
+                },
+                "gallery_photos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api_cat.FileMetadata"
+                    }
+                },
+                "title_photo": {
+                    "$ref": "#/definitions/internal_api_cat.FileMetadata"
+                }
+            }
+        },
+        "internal_api_cat.FileMetadata": {
+            "type": "object",
+            "properties": {
+                "height": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_api_health.HealthResponse": {
             "type": "object",
             "properties": {
@@ -180,14 +288,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_api_user.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "error": {
                     "type": "string"
                 }
             }
@@ -219,6 +319,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "login": {
+                    "type": "string"
+                }
+            }
+        },
+        "richmond-api_internal_api_errors.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
                     "type": "string"
                 }
             }

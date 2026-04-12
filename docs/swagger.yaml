@@ -1,4 +1,30 @@
 definitions:
+  internal_api_cat.CreateCatResponse:
+    properties:
+      cat_id:
+        type: string
+      gallery_photos:
+        items:
+          $ref: '#/definitions/internal_api_cat.FileMetadata'
+        type: array
+      title_photo:
+        $ref: '#/definitions/internal_api_cat.FileMetadata'
+    type: object
+  internal_api_cat.FileMetadata:
+    properties:
+      height:
+        type: integer
+      key:
+        type: string
+      size:
+        type: integer
+      type:
+        type: string
+      url:
+        type: string
+      width:
+        type: integer
+    type: object
   internal_api_health.HealthResponse:
     properties:
       message:
@@ -13,11 +39,6 @@ definitions:
     required:
     - login
     - password
-    type: object
-  internal_api_user.ErrorResponse:
-    properties:
-      error:
-        type: string
     type: object
   internal_api_user.LoginRequest:
     properties:
@@ -39,12 +60,62 @@ definitions:
       login:
         type: string
     type: object
+  richmond-api_internal_api_errors.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
 info:
   contact: {}
   description: Backend for richmond app
   title: richmond-api
   version: 0.1.0
 paths:
+  /api/v1/cat/new:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Creates a new cat with photos (multipart/form-data)
+      parameters:
+      - description: JSON cat data
+        in: formData
+        name: data
+        required: true
+        type: string
+      - collectionFormat: csv
+        description: Photo files (first is title photo)
+        in: formData
+        items:
+          type: file
+        name: file
+        required: true
+        type: array
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_cat.CreateCatResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new cat
+      tags:
+      - cat
   /api/v1/user:
     get:
       description: Returns user data for authenticated user
@@ -65,7 +136,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_user.ErrorResponse'
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get current user
@@ -93,7 +164,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_api_user.ErrorResponse'
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
       summary: Login
       tags:
       - user
@@ -119,7 +190,7 @@ paths:
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/internal_api_user.ErrorResponse'
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
       summary: Create a new user
       tags:
       - user

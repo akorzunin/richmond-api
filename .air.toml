@@ -13,7 +13,7 @@ swag init --parseDependency --parseInternal -g cmd/main.go;
 sqlc generate;
 GOOSE_DRIVER=postgres GOOSE_DBSTRING=postgres://admin:admin@localhost:9903/main GOOSE_MIGRATION_DIR=./internal/db/schema goose up;
 go build -o ./tmp/main cmd/main.go
-  """
+"""
 delay = 1000
 entrypoint = ["./tmp/main"]
 exclude_dir = [

@@ -1,6 +1,6 @@
 version: "3"
 
-dotenv: ['.env']
+dotenv: [".env"]
 
 tasks:
   default:
@@ -40,10 +40,10 @@ tasks:
   migrate:
     desc: Run migrations
     aliases: [m]
-    environment:
-      - GOOSE_DRIVER=postgres
-      - GOOSE_DBSTRING=postgres://admin:admin@localhost:9903/main
-      - GOOSE_MIGRATION_DIR=./internal/db/schema
+    env:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://admin:admin@localhost:9903/main
+      GOOSE_MIGRATION_DIR: ./internal/db/schema
     cmds:
       - goose up
 
