@@ -18,7 +18,7 @@ tasks:
     desc: Run tests
     aliases: [t]
     cmds:
-      - go test ./... -v
+      - gotest ./... -v
 
   setup:
     desc: Setup project
@@ -36,6 +36,8 @@ tasks:
         if: '[ -z "$(which goose)" ]'
       - cmd: echo "Add ~/go/bin to PATH"; exit 1
         if: '[ -z "$(which swag)" ]'
+      - cmd: go install github.com/rakyll/gotest@latest
+        if: '[ -z "$(which gotest)" ]'
 
   migrate:
     desc: Run migrations

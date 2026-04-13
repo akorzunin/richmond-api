@@ -14,6 +14,13 @@ build binary
 go build -o ./build/richmond-api
 ```
 
+### Run tests
+
+```bash
+go install github.com/rakyll/gotest@latest
+gotest ./... -v
+```
+
 ### Run DB and s3 in docker
 
 ```bash
