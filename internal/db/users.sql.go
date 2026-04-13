@@ -12,7 +12,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (user_name, user_pass)
 VALUES ($1, $2)
-RETURNING user_id, user_name, user_pass
+RETURNING user_id, user_name, user_pass, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -23,28 +23,46 @@ type CreateUserParams struct {
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createUser, arg.UserName, arg.UserPass)
 	var i User
-	err := row.Scan(&i.UserID, &i.UserName, &i.UserPass)
+	err := row.Scan(
+		&i.UserID,
+		&i.UserName,
+		&i.UserPass,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT user_id, user_name, user_pass FROM users WHERE user_id = $1
+SELECT user_id, user_name, user_pass, created_at, updated_at FROM users WHERE user_id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, userID int32) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, userID)
 	var i User
-	err := row.Scan(&i.UserID, &i.UserName, &i.UserPass)
+	err := row.Scan(
+		&i.UserID,
+		&i.UserName,
+		&i.UserPass,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
 const getUserByName = `-- name: GetUserByName :one
-SELECT user_id, user_name, user_pass FROM users WHERE user_name = $1
+SELECT user_id, user_name, user_pass, created_at, updated_at FROM users WHERE user_name = $1
 `
 
 func (q *Queries) GetUserByName(ctx context.Context, userName string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByName, userName)
 	var i User
-	err := row.Scan(&i.UserID, &i.UserName, &i.UserPass)
+	err := row.Scan(
+		&i.UserID,
+		&i.UserName,
+		&i.UserPass,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }

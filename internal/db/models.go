@@ -8,6 +8,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Cat struct {
+	CatID  int32 `json:"cat_id"`
+	UserID int32 `json:"user_id"`
+	// Name of cat
+	Name string `json:"name"`
+	// Date of birth
+	BirthDate pgtype.Date `json:"birth_date"`
+	// Breed of cat
+	Breed string `json:"breed"`
+	// Weight of cat in kg
+	Weight float64 `json:"weight"`
+	// Habits of cat
+	Habits    string           `json:"habits"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+}
+
+type File struct {
+	ID     int32       `json:"id"`
+	UserID int32       `json:"user_id"`
+	CatID  pgtype.Int4 `json:"cat_id"`
+	PostID pgtype.Int4 `json:"post_id"`
+	// Unique key for file derived from file name
+	Key string `json:"key"`
+	// URL for file (S3 URL)
+	Url string `json:"url"`
+	// Width of image
+	Width int32 `json:"width"`
+	// Height of image
+	Height int32 `json:"height"`
+	// Size of file in bytes
+	Size int64 `json:"size"`
+	// Quality of image original|thumbnail|preview
+	Quality string `json:"quality"`
+	// Content(MIME) type of file
+	Type      string           `json:"type"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+}
+
+type Post struct {
+	PostID int32 `json:"post_id"`
+	UserID int32 `json:"user_id"`
+	CatID  int32 `json:"cat_id"`
+	// Title of post
+	Title string `json:"title"`
+	// Body of post
+	Body      string           `json:"body"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+}
+
 type Session struct {
 	SessionID int32            `json:"session_id"`
 	UserID    int32            `json:"user_id"`
@@ -16,7 +68,9 @@ type Session struct {
 }
 
 type User struct {
-	UserID   int32  `json:"user_id"`
-	UserName string `json:"user_name"`
-	UserPass string `json:"user_pass"`
+	UserID    int32            `json:"user_id"`
+	UserName  string           `json:"user_name"`
+	UserPass  string           `json:"user_pass"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
 }
