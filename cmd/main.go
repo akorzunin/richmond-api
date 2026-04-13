@@ -33,10 +33,10 @@ func main() {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// User API
-	v1 := r.Group("/api/v1/user")
-	v1.POST("/new", userHandler.Create)
-	v1.POST("/login", userHandler.Login)
-	v1.GET("", user.AuthMiddleware(queries), userHandler.Get)
+	userGroup := r.Group("/api/v1/user")
+	userGroup.POST("/new", userHandler.Create)
+	userGroup.POST("/login", userHandler.Login)
+	userGroup.GET("", user.AuthMiddleware(queries), userHandler.Get)
 
 	// Cat API
 	catGroup := r.Group("/api/v1/cat")
