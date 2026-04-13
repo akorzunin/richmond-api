@@ -15,6 +15,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const TestCat string = `{"name": "Whiskers", "birth_date": "2023-01-15", "breed": "Tabby", "habits": "Sleeping", "weight": 4.5}`
+
 // mockQuerier implements cat.Querier interface for testing
 type mockQuerier struct {
 	sessions map[string]db.Session
@@ -164,9 +166,7 @@ func TestCreateCat_Success(t *testing.T) {
 		Token:     "test-token",
 	})
 
-	// Create request with JSON data and title photo
-	catData := `{"name": "Whiskers", "birth_date": "2023-01-15", "breed": "Tabby", "habits": "Sleeping", "weight": 4.5}`
-	req, err := createTestRequest("POST", "/api/v1/cat/new", catData, "cat.jpg")
+	req, err := createTestRequest("POST", "/api/v1/cat/new", TestCat, "cat.jpg")
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -180,20 +180,20 @@ func TestCreateCat_Success(t *testing.T) {
 	}
 }
 
-func TestCreateCat_MissingTitlePhoto(t *testing.T) {
+func SetupTestApi() *gin.Engine {
 	mock := newMockQuerier()
 	router := setupTestRouterWithAuth(mock)
-
-	// Add session for auth
 	mock.AddSession("test-token", db.Session{
 		SessionID: 1,
 		UserID:    42,
 		Token:     "test-token",
 	})
+	return router
+}
 
-	// Create request with JSON data but no file
-	catData := `{"name": "Whiskers", "birth_date": "2023-01-15", "breed": "Tabby", "habits": "Sleeping", "weight": 4.5}`
-	req, err := createTestRequest("POST", "/api/v1/cat/new", catData, "")
+func TestCreateCat_MissingTitlePhoto(t *testing.T) {
+	router := SetupTestApi()
+	req, err := createTestRequest("POST", "/api/v1/cat/new", TestCat, "")
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -208,17 +208,7 @@ func TestCreateCat_MissingTitlePhoto(t *testing.T) {
 }
 
 func TestCreateCat_MissingData(t *testing.T) {
-	mock := newMockQuerier()
-	router := setupTestRouterWithAuth(mock)
-
-	// Add session for auth
-	mock.AddSession("test-token", db.Session{
-		SessionID: 1,
-		UserID:    42,
-		Token:     "test-token",
-	})
-
-	// Create request with no JSON data field
+	router := SetupTestApi()
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	// Add only a file without the "data" field
@@ -241,17 +231,7 @@ func TestCreateCat_MissingData(t *testing.T) {
 }
 
 func TestCreateCat_InvalidJSON(t *testing.T) {
-	mock := newMockQuerier()
-	router := setupTestRouterWithAuth(mock)
-
-	// Add session for auth
-	mock.AddSession("test-token", db.Session{
-		SessionID: 1,
-		UserID:    42,
-		Token:     "test-token",
-	})
-
-	// Create request with malformed JSON
+	router := SetupTestApi()
 	invalidJSON := `{"name": "Whiskers", invalid}`
 	req, err := createTestRequest("POST", "/api/v1/cat/new", invalidJSON, "cat.jpg")
 	if err != nil {
@@ -268,23 +248,10 @@ func TestCreateCat_InvalidJSON(t *testing.T) {
 }
 
 func TestCreateCat_InvalidFileType(t *testing.T) {
-	mock := newMockQuerier()
-	router := setupTestRouterWithAuth(mock)
-
-	// Add session for auth
-	mock.AddSession("test-token", db.Session{
-		SessionID: 1,
-		UserID:    42,
-		Token:     "test-token",
-	})
-
-	// Create request with non-image file (actual PDF content with magic bytes)
-	catData := `{"name": "Whiskers", "birth_date": "2023-01-15", "breed": "Tabby", "habits": "Sleeping", "weight": 4.5}`
-
-	// Create multipart request with actual PDF magic bytes
+	router := SetupTestApi()
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	writer.WriteField("data", catData)
+	writer.WriteField("data", TestCat)
 	part, _ := writer.CreateFormFile("file", "document.pdf")
 	// PDF magic bytes: %PDF-1.4
 	pdfMagicBytes := []byte{0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34}
@@ -306,12 +273,7 @@ func TestCreateCat_InvalidFileType(t *testing.T) {
 func TestCreateCat_Unauthorized(t *testing.T) {
 	mock := newMockQuerier()
 	router := setupTestRouterWithAuth(mock)
-
-	// No session added - should fail auth
-
-	// Create request with valid JSON and file
-	catData := `{"name": "Whiskers", "birth_date": "2023-01-15", "breed": "Tabby", "habits": "Sleeping", "weight": 4.5}`
-	req, err := createTestRequest("POST", "/api/v1/cat/new", catData, "cat.jpg")
+	req, err := createTestRequest("POST", "/api/v1/cat/new", TestCat, "cat.jpg")
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
