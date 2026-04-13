@@ -18,16 +18,16 @@ func UploadCommand(
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	return UploadImage(client, bucket, objectKey, data)
+	return CreateFile(client, bucket, objectKey, data)
 }
 
 func DownloadCommand(
 	client *minio.Client,
 	bucket, objectKey, filePath string,
 ) error {
-	data, err := DownloadImage(client, bucket, objectKey)
+	data, err := GetFile(client, bucket, objectKey)
 	if err != nil {
-		return fmt.Errorf("failed to download image: %w", err)
+		return fmt.Errorf("failed to download file: %w", err)
 	}
 
 	// Ensure parent directory exists
