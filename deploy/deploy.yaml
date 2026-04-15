@@ -3,6 +3,8 @@
   become: false
   vars:
     project_dir: "/srv/deploy/richmond"
+    COMPOSE_CHANGED: "0"
+    MIGRATIONS_CHANGED: "0"
 
   tasks:
     - name: Create deploy dir
@@ -31,6 +33,18 @@
         AUTH_PASS: "{{ AUTH_PASS }}"
       register: out
       changed_when: out.rc != 0
+
+    - name: Run migrations
+      when: MIGRATIONS_CHANGED | bool
+      ansible.builtin.command:
+        cmd: >-
+          docker run --rm --network=richmond-api_default
+          -e GOOSE_DRIVER=postgres
+          -e GOOSE_MIGRATION_DIR=/migrations
+          -e GOOSE_DBSTRING=postgres://{{ AUTH_USER }}:{{ AUTH_PASS }}@postgres:5432/main
+          ghcr.io/akorzunin/richmond-api:migrations-runner
+      register: out
+      changed_when: out.rc == 0
 
     - name: Deploy richmond-api
       ansible.builtin.command:

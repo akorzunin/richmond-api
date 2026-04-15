@@ -18,7 +18,14 @@ tasks:
     desc: Run tests
     aliases: [t]
     cmds:
-      - gotest ./... -v
+      - gotest ./... -v -cover
+
+  coverage:
+    desc: Run tests and generate coverage report
+    aliases: [tc]
+    cmds:
+      - gotest ./... -v -coverprofile=coverage.out
+      - go tool cover -func=coverage.out
 
   setup:
     desc: Setup project

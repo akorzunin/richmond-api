@@ -1,3 +1,4 @@
+name: richmond-api
 services:
   richmond-api:
     image: ghcr.io/akorzunin/richmond-api:${IMAGE_TAG}
@@ -7,6 +8,7 @@ services:
       - "9902:8080"
     depends_on:
       - postgres
+      - rustfs
     environment:
       - PG_ADDRESS=postgres:5432
       - PG_USER=${AUTH_USER}
@@ -37,8 +39,6 @@ services:
     volumes:
       - ${DATA_DIR:-/mnt/storage/richmond/rustfs/data}:/data
       - ${DATA_DIR:-/mnt/storage/richmond/rustfs/logs}:/logs
-    depends_on:
-      - postgres
     deploy:
       resources:
         limits:
