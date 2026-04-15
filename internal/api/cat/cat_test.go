@@ -144,8 +144,6 @@ func setupTestRouterWithAuth(mock *mockQuerier) *gin.Engine {
 			c.Abort()
 			return
 		}
-
-		// Set user_id in context
 		c.Set("user_id", session.UserID)
 		c.Next()
 	}
@@ -155,17 +153,19 @@ func setupTestRouterWithAuth(mock *mockQuerier) *gin.Engine {
 	return router
 }
 
-func TestCreateCat_Success(t *testing.T) {
+func SetupTestApi() *gin.Engine {
 	mock := newMockQuerier()
 	router := setupTestRouterWithAuth(mock)
-
-	// Add session for auth
 	mock.AddSession("test-token", db.Session{
 		SessionID: 1,
 		UserID:    42,
 		Token:     "test-token",
 	})
+	return router
+}
 
+func TestCreateCat_Success(t *testing.T) {
+	router := SetupTestApi()
 	req, err := createTestRequest("POST", "/api/v1/cat/new", TestCat, "cat.jpg")
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
@@ -178,17 +178,6 @@ func TestCreateCat_Success(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
 	}
-}
-
-func SetupTestApi() *gin.Engine {
-	mock := newMockQuerier()
-	router := setupTestRouterWithAuth(mock)
-	mock.AddSession("test-token", db.Session{
-		SessionID: 1,
-		UserID:    42,
-		Token:     "test-token",
-	})
-	return router
 }
 
 func TestCreateCat_MissingTitlePhoto(t *testing.T) {

@@ -80,11 +80,12 @@ var allowedImageTypes = map[string]bool{
 // @Security BearerAuth
 // @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
 func (h *CatHandler) CreateCat(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	anyUserID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, e.ErrorResponse{Error: "unauthorized"})
 		return
 	}
+	userID := anyUserID.(int32)
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32MB max
 		c.JSON(
 			http.StatusBadRequest,
@@ -157,7 +158,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	}
 
 	// 5. Validate and extract title photo (first file)
-	titlePhoto, err := h.processFile(files[0], userID.(int32))
+	titlePhoto, err := h.processFile(files[0], userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
 		return
@@ -166,7 +167,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	// 6. Process gallery photos (remaining files, optional)
 	var galleryPhotos []FileMetadata
 	for i := 1; i < len(files); i++ {
-		photo, err := h.processFile(files[i], userID.(int32))
+		photo, err := h.processFile(files[i], userID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
 			return
@@ -178,7 +179,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 
 	// 7. Return success response
 	// Generate placeholder cat_id (will be from DB in future)
-	catID := fmt.Sprintf("cat_%d_%d", userID.(int32), len(files))
+	catID := fmt.Sprintf("cat_%d_%d", userID, len(files))
 
 	if galleryPhotos == nil {
 		galleryPhotos = []FileMetadata{}
