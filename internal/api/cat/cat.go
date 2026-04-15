@@ -1,6 +1,7 @@
 package cat
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,7 +14,16 @@ import (
 	"github.com/google/uuid"
 
 	e "richmond-api/internal/api/errors"
+	"richmond-api/internal/db"
 )
+
+type Querier interface {
+	CreateCat(ctx context.Context, params db.CreateCatParams) (db.Cat, error)
+	GetCatByID(ctx context.Context, catID int32) (db.Cat, error)
+	GetSessionByToken(ctx context.Context, token string) (db.Session, error)
+	DeleteSession(ctx context.Context, token string) error
+	DeleteUserSessions(ctx context.Context, userID int32) error
+}
 
 // FileMetadata represents metadata for an uploaded file
 type FileMetadata struct {
@@ -41,17 +51,10 @@ type CreateCatResponse struct {
 	GalleryPhotos []FileMetadata `json:"gallery_photos"`
 }
 
-// Querier interface for future database operations
-type Querier interface {
-	// Placeholder - add methods as needed
-}
-
-// CatHandler handles cat-related requests
 type CatHandler struct {
 	queries Querier
 }
 
-// NewCatHandler creates a new CatHandler
 func NewCatHandler(queries Querier) *CatHandler {
 	return &CatHandler{queries: queries}
 }
@@ -158,7 +161,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	}
 
 	// 5. Validate and extract title photo (first file)
-	titlePhoto, err := h.processFile(files[0], userID)
+	titlePhoto, err := processFile(files[0], userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
 		return
@@ -167,7 +170,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	// 6. Process gallery photos (remaining files, optional)
 	var galleryPhotos []FileMetadata
 	for i := 1; i < len(files); i++ {
-		photo, err := h.processFile(files[i], userID)
+		photo, err := processFile(files[i], userID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
 			return
@@ -214,8 +217,7 @@ func detectImageType(file *multipart.FileHeader) (string, error) {
 	return contentType, nil
 }
 
-// processFile validates and extracts metadata from an uploaded file
-func (h *CatHandler) processFile(
+func processFile(
 	file *multipart.FileHeader,
 	userID int32,
 ) (*FileMetadata, error) {

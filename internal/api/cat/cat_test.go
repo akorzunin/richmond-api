@@ -15,7 +15,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const TestCat string = `{"name": "Whiskers", "birth_date": "2023-01-15", "breed": "Tabby", "habits": "Sleeping", "weight": 4.5}`
+const TestCat string = `{
+	"name": "Whiskers",
+	"birth_date": "2023-01-15",
+	"breed": "Tabby",
+	"habits": "Sleeping",
+	"weight": 4.5
+}`
 
 // mockQuerier implements cat.Querier interface for testing
 type mockQuerier struct {
@@ -57,6 +63,24 @@ func (m *mockQuerier) GetSessionByToken(ctx context.Context, token string) (db.S
 		return db.Session{}, errors.New("session not found")
 	}
 	return session, nil
+}
+
+// CreateCat implements Querier
+func (m *mockQuerier) CreateCat(ctx context.Context, params db.CreateCatParams) (db.Cat, error) {
+	return db.Cat{
+		CatID:     1,
+		UserID:    params.UserID,
+		Name:      params.Name,
+		BirthDate: params.BirthDate,
+		Breed:     params.Breed,
+		Weight:    params.Weight,
+		Habits:    params.Habits,
+	}, nil
+}
+
+// GetCatByID implements Querier
+func (m *mockQuerier) GetCatByID(ctx context.Context, catID int32) (db.Cat, error) {
+	return db.Cat{}, errors.New("cat not found")
 }
 
 // createTestRequest creates a multipart form request with optional file
