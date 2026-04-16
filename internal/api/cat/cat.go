@@ -179,6 +179,9 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	}
 
 	// TODO: Save to database (placeholder - user_id: %v, req: %+v)
+	cat, err := h.queries.GetCatByID(c, 1)
+
+	fmt.Println(cat, err)
 
 	// 7. Return success response
 	// Generate placeholder cat_id (will be from DB in future)
