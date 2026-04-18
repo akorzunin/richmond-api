@@ -55,10 +55,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	client, cfg, err := s3.NewClientFromEnv()
+	cfg, err := s3.NewClientFromEnv()
 	if err != nil {
 		log.Fatalf("Failed to create S3 client: %v", err)
 	}
+	client := cfg.Client
 
 	cmd := flag.Arg(0)
 	switch cmd {

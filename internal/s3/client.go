@@ -11,35 +11,36 @@ import (
 )
 
 // Config holds S3 client configuration settings.
-type Config struct {
+type S3Config struct {
 	Endpoint  string
 	AccessKey string
 	SecretKey string
 	UseSSL    bool
 	Bucket    string
+	Client    *minio.Client
 }
 
 // NewClientFromEnv creates a new S3 client from environment variables.
 // Required env vars: S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY
 // Optional env vars: S3_USE_SSL (default "false"), S3_BUCKET (default "main")
-func NewClientFromEnv() (*minio.Client, *Config, error) {
+func NewClientFromEnv() (*S3Config, error) {
 	endpoint := os.Getenv("S3_ADDRESS")
 	if endpoint == "" {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"S3_ADDRESS environment variable is required",
 		)
 	}
 
 	accessKey := os.Getenv("ACCESS_KEY")
 	if accessKey == "" {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"ACCESS_KEY environment variable is required",
 		)
 	}
 
 	secretKey := os.Getenv("SECRET_KEY")
 	if secretKey == "" {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"SECRET_KEY environment variable is required",
 		)
 	}
@@ -54,18 +55,19 @@ func NewClientFromEnv() (*minio.Client, *Config, error) {
 
 	client, err := NewClient(endpoint, accessKey, secretKey, useSSL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create S3 client: %w", err)
+		return nil, fmt.Errorf("failed to create S3 client: %w", err)
 	}
 
-	cfg := &Config{
+	cfg := &S3Config{
 		Endpoint:  endpoint,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
 		UseSSL:    useSSL,
 		Bucket:    bucket,
+		Client:    client,
 	}
 
-	return client, cfg, nil
+	return cfg, nil
 }
 
 // NewClient creates a new MinIO client with the given credentials.

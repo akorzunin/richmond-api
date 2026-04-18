@@ -10,6 +10,7 @@ import (
 	h "richmond-api/internal/api/health"
 	"richmond-api/internal/api/user"
 	"richmond-api/internal/db"
+	"richmond-api/internal/s3"
 )
 
 // @title richmond-api
@@ -19,15 +20,21 @@ func main() {
 	r := gin.Default()
 
 	// Connect to database
-	conn, err := db.Connect()
+	pool, err := db.ConnectWithPool()
 	if err != nil {
 		panic("failed to connect to database")
 	}
-	queries := db.New(conn)
+	queries := db.New(pool)
+
+	// Initialize S3 client
+	s3Client, err := s3.NewClientFromEnv()
+	if err != nil {
+		panic("failed to create S3 client: " + err.Error())
+	}
 
 	// Initialize handlers
 	userHandler := user.NewUserHandler(queries)
-	catHandler := cat.NewCatHandler(queries)
+	catHandler := cat.NewCatHandler(queries, pool, s3Client)
 
 	r.GET("/health", h.Health)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

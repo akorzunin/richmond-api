@@ -9,20 +9,28 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/minio/minio-go/v7"
 
 	e "richmond-api/internal/api/errors"
 	"richmond-api/internal/db"
+	"richmond-api/internal/s3"
 )
 
 type Querier interface {
 	CreateCat(ctx context.Context, params db.CreateCatParams) (db.Cat, error)
 	GetCatByID(ctx context.Context, catID int32) (db.Cat, error)
+	CreateFile(ctx context.Context, params db.CreateFileParams) (db.File, error)
 	GetSessionByToken(ctx context.Context, token string) (db.Session, error)
 	DeleteSession(ctx context.Context, token string) error
 	DeleteUserSessions(ctx context.Context, userID int32) error
+	WithTx(tx pgx.Tx) *db.Queries
 }
 
 // FileMetadata represents metadata for an uploaded file
@@ -53,10 +61,20 @@ type CreateCatResponse struct {
 
 type CatHandler struct {
 	queries Querier
+	db      *pgxpool.Pool
+	s3      *s3.S3Config
 }
 
-func NewCatHandler(queries Querier) *CatHandler {
-	return &CatHandler{queries: queries}
+func NewCatHandler(
+	queries Querier,
+	db *pgxpool.Pool,
+	s3 *s3.S3Config,
+) *CatHandler {
+	return &CatHandler{
+		queries: queries,
+		db:      db,
+		s3:      s3,
+	}
 }
 
 // allowedImageTypes contains the allowed MIME types for images
@@ -83,6 +101,8 @@ var allowedImageTypes = map[string]bool{
 // @Security BearerAuth
 // @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
 func (h *CatHandler) CreateCat(c *gin.Context) {
+	ctx := c.Request.Context()
+
 	anyUserID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, e.ErrorResponse{Error: "unauthorized"})
@@ -130,7 +150,6 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 		return
 	}
 
-	// 4. Get files from multipart form
 	form := c.Request.MultipartForm
 	if form == nil || form.File == nil {
 		c.JSON(
@@ -160,36 +179,201 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 		return
 	}
 
-	// 5. Validate and extract title photo (first file)
-	titlePhoto, err := processFile(files[0], userID)
+	// Guard clause: ensure required services are available before DB operations
+	if h.db == nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{Error: "database not configured"},
+		)
+		return
+	}
+	if h.s3 == nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{Error: "S3 client not configured"},
+		)
+		return
+	}
+
+	// Begin transaction
+	tx, err := h.db.Begin(ctx)
 	if err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{Error: "failed to begin transaction"},
+		)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	txQueries := h.queries.WithTx(tx)
+
+	// Process title photo (first file)
+	titlePhoto, err := processFile(files[0], userID, h.s3.Client, h.s3.Bucket)
+	if err != nil {
+		tx.Rollback(ctx)
 		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	// 6. Process gallery photos (remaining files, optional)
+	// Save title photo to DB with null cat_id
+	titleFile, err := txQueries.CreateFile(ctx, db.CreateFileParams{
+		UserID:  userID,
+		CatID:   pgtype.Int4{Valid: false},
+		PostID:  pgtype.Int4{Valid: false},
+		Key:     titlePhoto.Key,
+		Url:     titlePhoto.URL,
+		Width:   int32(titlePhoto.Width),
+		Height:  int32(titlePhoto.Height),
+		Size:    titlePhoto.Size,
+		Quality: "original",
+		Type:    titlePhoto.Type,
+	})
+	if err != nil {
+		tx.Rollback(ctx)
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{
+				Error: fmt.Sprintf("failed to save title photo: %v", err),
+			},
+		)
+		return
+	}
+
+	// Process gallery photos (remaining files, optional)
 	var galleryPhotos []FileMetadata
+	var galleryFileIDs []int32
 	for i := 1; i < len(files); i++ {
-		photo, err := processFile(files[i], userID)
+		photo, err := processFile(files[i], userID, h.s3.Client, h.s3.Bucket)
 		if err != nil {
+			tx.Rollback(ctx)
 			c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
 			return
 		}
+
+		galleryFile, err := txQueries.CreateFile(ctx, db.CreateFileParams{
+			UserID:  userID,
+			CatID:   pgtype.Int4{Valid: false},
+			PostID:  pgtype.Int4{Valid: false},
+			Key:     photo.Key,
+			Url:     photo.URL,
+			Width:   int32(photo.Width),
+			Height:  int32(photo.Height),
+			Size:    photo.Size,
+			Quality: "original",
+			Type:    photo.Type,
+		})
+		if err != nil {
+			tx.Rollback(ctx)
+			c.JSON(
+				http.StatusInternalServerError,
+				e.ErrorResponse{
+					Error: fmt.Sprintf("failed to save gallery photo: %v", err),
+				},
+			)
+			return
+		}
+
 		galleryPhotos = append(galleryPhotos, *photo)
+		galleryFileIDs = append(galleryFileIDs, galleryFile.ID)
 	}
 
-	// TODO: Save to database (placeholder - user_id: %v, req: %+v)
+	// Parse birth_date if provided
+	var birthDate pgtype.Date
+	if req.BirthDate != "" {
+		parsed, err := time.Parse("2006-01-02", req.BirthDate)
+		if err != nil {
+			tx.Rollback(ctx)
+			c.JSON(
+				http.StatusBadRequest,
+				e.ErrorResponse{
+					Error: "invalid birth_date format, use YYYY-MM-DD",
+				},
+			)
+			return
+		}
+		birthDate = pgtype.Date{Time: parsed, Valid: true}
+	} else {
+		birthDate = pgtype.Date{Valid: false}
+	}
 
-	// 7. Return success response
-	// Generate placeholder cat_id (will be from DB in future)
-	catID := fmt.Sprintf("cat_%d_%d", userID, len(files))
+	// Create cat record
+	cat, err := txQueries.CreateCat(ctx, db.CreateCatParams{
+		UserID:    userID,
+		Name:      req.Name,
+		BirthDate: birthDate,
+		Breed:     req.Breed,
+		Weight:    req.Weight,
+		Habits:    req.Habits,
+	})
+	if err != nil {
+		tx.Rollback(ctx)
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{
+				Error: fmt.Sprintf("failed to create cat: %v", err),
+			},
+		)
+		return
+	}
+
+	// Update title photo with cat_id
+	_, err = tx.Exec(
+		ctx,
+		"UPDATE files SET cat_id = $1 WHERE id = $2",
+		cat.CatID,
+		titleFile.ID,
+	)
+	if err != nil {
+		tx.Rollback(ctx)
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{
+				Error: fmt.Sprintf("failed to update title photo: %v", err),
+			},
+		)
+		return
+	}
+
+	// Update gallery photos with cat_id
+	for _, fileID := range galleryFileIDs {
+		_, err = tx.Exec(
+			ctx,
+			"UPDATE files SET cat_id = $1 WHERE id = $2",
+			cat.CatID,
+			fileID,
+		)
+		if err != nil {
+			tx.Rollback(ctx)
+			c.JSON(
+				http.StatusInternalServerError,
+				e.ErrorResponse{
+					Error: fmt.Sprintf(
+						"failed to update gallery photo: %v",
+						err,
+					),
+				},
+			)
+			return
+		}
+	}
+
+	// Commit transaction
+	if err = tx.Commit(ctx); err != nil {
+		tx.Rollback(ctx)
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{Error: "failed to commit transaction"},
+		)
+		return
+	}
 
 	if galleryPhotos == nil {
 		galleryPhotos = []FileMetadata{}
 	}
 
 	c.JSON(http.StatusCreated, CreateCatResponse{
-		CatID:         catID,
+		CatID:         fmt.Sprintf("%d", cat.CatID),
 		TitlePhoto:    *titlePhoto,
 		GalleryPhotos: galleryPhotos,
 	})
@@ -220,6 +404,8 @@ func detectImageType(file *multipart.FileHeader) (string, error) {
 func processFile(
 	file *multipart.FileHeader,
 	userID int32,
+	s3Client *minio.Client,
+	s3Bucket string,
 ) (*FileMetadata, error) {
 	// Validate file size (10MB max)
 	const maxFileSize = 10 << 20 // 10MB
@@ -233,22 +419,46 @@ func processFile(
 		return nil, err
 	}
 
-	// Generate safe key to prevent path traversal
+	// Generate safe name to prevent path traversal
 	safeName := filepath.Base(file.Filename)
 	if safeName == "." || safeName == "" {
 		safeName = "unknown"
 	}
+
+	// Generate S3 key
 	key := fmt.Sprintf("cat/%d/%s_%s", userID, uuid.New().String(), safeName)
 
-	// Extract metadata
-	metadata := &FileMetadata{
+	// Open and read file data
+	src, err := file.Open()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer src.Close()
+
+	data, err := io.ReadAll(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file data: %w", err)
+	}
+
+	// Upload to S3
+	if err := s3.UploadImage(s3Client, s3Bucket, key, data); err != nil {
+		return nil, fmt.Errorf("failed to upload to S3: %w", err)
+	}
+
+	// Build public URL
+	url := fmt.Sprintf(
+		"https://%s/%s/%s",
+		s3Client.EndpointURL().Host,
+		s3Bucket,
+		key,
+	)
+
+	return &FileMetadata{
 		Key:    key,
-		URL:    "", // Will be S3 URL in future
+		URL:    url,
 		Size:   file.Size,
 		Type:   contentType,
 		Width:  0, // Will be extracted in future
 		Height: 0,
-	}
-
-	return metadata, nil
+	}, nil
 }
