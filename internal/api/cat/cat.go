@@ -13,12 +13,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
 
 	e "richmond-api/internal/api/errors"
+	"richmond-api/internal/api/tx"
 	"richmond-api/internal/db"
 	"richmond-api/internal/s3"
 )
@@ -30,7 +29,7 @@ type Querier interface {
 	GetSessionByToken(ctx context.Context, token string) (db.Session, error)
 	DeleteSession(ctx context.Context, token string) error
 	DeleteUserSessions(ctx context.Context, userID int32) error
-	WithTx(tx pgx.Tx) *db.Queries
+	WithTx(tx tx.TxRunner) db.TxQuerier
 }
 
 // FileMetadata represents metadata for an uploaded file
@@ -59,21 +58,52 @@ type CreateCatResponse struct {
 	GalleryPhotos []FileMetadata `json:"gallery_photos"`
 }
 
+type Pool interface {
+	Begin(ctx context.Context) (tx.TxRunner, error)
+}
+
+// S3Uploader defines the interface for uploading files to S3
+type S3Uploader interface {
+	Upload(key string, data []byte) error
+	Endpoint() string
+}
+
+// s3Client wraps *minio.Client to implement S3Uploader
+type s3Client struct {
+	client *minio.Client
+	bucket string
+}
+
+func newS3Client(client *minio.Client, bucket string) *s3Client {
+	return &s3Client{client: client, bucket: bucket}
+}
+
+func (s *s3Client) Upload(key string, data []byte) error {
+	return s3.UploadImage(s.client, s.bucket, key, data)
+}
+
+func (s *s3Client) Endpoint() string {
+	return s.client.EndpointURL().Host
+}
+
 type CatHandler struct {
 	queries Querier
-	db      *pgxpool.Pool
-	s3      *s3.S3Config
+	db      Pool
+	s3      S3Uploader
+	bucket  string
 }
 
 func NewCatHandler(
 	queries Querier,
-	db *pgxpool.Pool,
-	s3 *s3.S3Config,
+	db Pool,
+	s3Client S3Uploader,
+	bucket string,
 ) *CatHandler {
 	return &CatHandler{
 		queries: queries,
 		db:      db,
-		s3:      s3,
+		s3:      s3Client,
+		bucket:  bucket,
 	}
 }
 
@@ -209,7 +239,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	txQueries := h.queries.WithTx(tx)
 
 	// Process title photo (first file)
-	titlePhoto, err := processFile(files[0], userID, h.s3.Client, h.s3.Bucket)
+	titlePhoto, err := processFile(files[0], userID, h.s3, h.bucket)
 	if err != nil {
 		tx.Rollback(ctx)
 		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
@@ -244,7 +274,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	var galleryPhotos []FileMetadata
 	var galleryFileIDs []int32
 	for i := 1; i < len(files); i++ {
-		photo, err := processFile(files[i], userID, h.s3.Client, h.s3.Bucket)
+		photo, err := processFile(files[i], userID, h.s3, h.bucket)
 		if err != nil {
 			tx.Rollback(ctx)
 			c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
@@ -404,8 +434,8 @@ func detectImageType(file *multipart.FileHeader) (string, error) {
 func processFile(
 	file *multipart.FileHeader,
 	userID int32,
-	s3Client *minio.Client,
-	s3Bucket string,
+	uploader S3Uploader,
+	bucket string,
 ) (*FileMetadata, error) {
 	// Validate file size (10MB max)
 	const maxFileSize = 10 << 20 // 10MB
@@ -441,15 +471,15 @@ func processFile(
 	}
 
 	// Upload to S3
-	if err := s3.UploadImage(s3Client, s3Bucket, key, data); err != nil {
+	if err := uploader.Upload(key, data); err != nil {
 		return nil, fmt.Errorf("failed to upload to S3: %w", err)
 	}
 
 	// Build public URL
 	url := fmt.Sprintf(
 		"https://%s/%s/%s",
-		s3Client.EndpointURL().Host,
-		s3Bucket,
+		uploader.Endpoint(),
+		bucket,
 		key,
 	)
 

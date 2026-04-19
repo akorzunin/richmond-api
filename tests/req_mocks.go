@@ -2,92 +2,93 @@ package tests
 
 import (
 	"bytes"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 
-	"richmond-api/internal/db"
-
 	"github.com/gin-gonic/gin"
+	"richmond-api/internal/db"
 )
 
-// CreateTestRequest creates a multipart form request with optional file
-func CreateTestRequest(
-	method, url string,
-	data string,
-	filename string,
-) (*http.Request, error) {
+// TestOptions provides flexible configuration for test requests
+type TestOptions struct {
+	Method      string
+	Path        string
+	Data        string
+	Filename    string
+	FileContent []byte
+	Auth        bool
+	Headers     map[string]string
+	QueryParams map[string]string
+}
+
+// CreateTestRequest creates a generic multipart form request with flexible options
+func CreateTestRequest(options TestOptions) (*http.Request, error) {
+	// Guard clause: validate required options
+	if options.Method == "" || options.Path == "" {
+		return nil, errors.New("method and path are required for test requests")
+	}
+
+	// Create request body
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
 	// Add JSON data field
-	if data != "" {
-		err := writer.WriteField("data", data)
+	if options.Data != "" {
+		err := writer.WriteField("data", options.Data)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// Add file if provided
-	if filename != "" {
-		part, err := writer.CreateFormFile("file", filename)
+	if options.Filename != "" {
+		part, err := writer.CreateFormFile("file", options.Filename)
 		if err != nil {
 			return nil, err
 		}
-		jpegMagicBytes := []byte{
-			0xFF,
-			0xD8,
-			0xFF,
-			0xE0,
-			0x00,
-			0x10,
-			0x4A,
-			0x46,
-			0x49,
-			0x46,
-			0x00,
-		}
-		_, err = part.Write(jpegMagicBytes)
-		if err != nil {
-			return nil, err
+		if len(options.FileContent) > 0 {
+			_, err = part.Write(options.FileContent)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	// Add additional files for gallery tests
 	writer.Close()
 
-	req, err := http.NewRequest(method, url, body)
+	// Create HTTP request
+	req, err := http.NewRequest(options.Method, options.Path, body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
+	// Add additional headers
+	for key, value := range options.Headers {
+		req.Header.Set(key, value)
+	}
+
+	// Add query parameters
+	if len(options.QueryParams) > 0 {
+		query := req.URL.Query()
+		for key, value := range options.QueryParams {
+			query.Add(key, value)
+		}
+		req.URL.RawQuery = query.Encode()
+	}
+
 	return req, nil
 }
 
-// SetupTestApi creates a gin router with auth middleware and registers the provided handlers
-func SetupTestApi(
-	mock *MockQuerier,
-	registerHandlers func(router *gin.Engine),
-) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-
-	// Add session for test-token
-	mock.AddSession("test-token", db.Session{
-		SessionID: 1,
-		UserID:    42,
-		Token:     "test-token",
-	})
-
-	// Auth middleware
-	router.Use(func(c *gin.Context) {
+// AuthMiddleware provides reusable authentication middleware
+func AuthMiddleware(mock *MockQuerier) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Guard clause: check for Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(
-				http.StatusUnauthorized,
-				gin.H{"error": "authorization header required"},
-			)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header required"})
 			c.Abort()
 			return
 		}
@@ -105,16 +106,24 @@ func SetupTestApi(
 		// Validate token
 		session, err := mock.GetSessionByToken(c.Request.Context(), token)
 		if err != nil {
-			c.JSON(
-				http.StatusUnauthorized,
-				gin.H{"error": "invalid or expired token"},
-			)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			c.Abort()
 			return
 		}
+
+		// Set user context for downstream handlers
 		c.Set("user_id", session.UserID)
 		c.Next()
-	})
+	}
+}
+
+// SetupTestApi creates a gin router with auth middleware and registers the provided handlers
+func SetupTestApi(mock *MockQuerier, registerHandlers func(router *gin.Engine)) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	// Add auth middleware
+	router.Use(AuthMiddleware(mock))
 
 	// Register provided handlers
 	registerHandlers(router)
@@ -122,90 +131,75 @@ func SetupTestApi(
 	return router
 }
 
-func TestReq(
-	method, path, data, filename string,
-	handlerFunc gin.HandlerFunc,
-) (*http.Response, error) {
+// TestReq executes a test request with flexible options
+func TestReq(options TestOptions, handlerFunc gin.HandlerFunc) (*http.Response, error) {
 	mock := NewMockQuerier()
+	options.Auth = true // Default to authenticated requests
+
 	router := SetupTestApi(mock, func(r *gin.Engine) {
-		r.Handle(method, path, handlerFunc)
+		r.Handle(options.Method, options.Path, handlerFunc)
 	})
+
+	// Add test session
 	mock.AddSession("test-token", db.Session{
 		SessionID: 1,
 		UserID:    42,
 		Token:     "test-token",
 	})
 
-	req, err := CreateTestRequest(method, path, data, filename)
+	req, err := CreateTestRequest(options)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer test-token")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w.Result(), nil
 }
 
-// TestReqNoAuth is a convenience function that executes a request without authorization
-func TestReqNoAuth(
-	method, path, data, filename string,
-	handlerFunc gin.HandlerFunc,
-) (*http.Response, error) {
+// TestReqNoAuth executes a test request without authorization
+func TestReqNoAuth(options TestOptions, handlerFunc gin.HandlerFunc) (*http.Response, error) {
 	mock := NewMockQuerier()
+	options.Auth = false
+
 	router := SetupTestApi(mock, func(r *gin.Engine) {
-		r.Handle(method, path, handlerFunc)
+		r.Handle(options.Method, options.Path, handlerFunc)
 	})
-	req, err := CreateTestRequest(method, path, data, filename)
+
+	req, err := CreateTestRequest(options)
 	if err != nil {
 		return nil, err
 	}
-	// NO Authorization header for unauthorized tests
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w.Result(), nil
 }
 
-// TestReqWithFileContent is a convenience function that executes a request with custom file content
-func TestReqWithFileContent(
-	method, path, data, filename string,
-	fileContent []byte,
-	handlerFunc gin.HandlerFunc,
-) (*http.Response, error) {
+// TestReqWithCustomOptions executes a test request with custom options
+func TestReqWithCustomOptions(options TestOptions, handlerFunc gin.HandlerFunc) (*http.Response, error) {
 	mock := NewMockQuerier()
-	router := SetupTestApi(mock, func(r *gin.Engine) {
-		r.Handle(method, path, handlerFunc)
-	})
-	mock.AddSession("test-token", db.Session{
-		SessionID: 1,
-		UserID:    42,
-		Token:     "test-token",
-	})
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
+	if options.Auth {
+		mock.AddSession("test-token", db.Session{
+			SessionID: 1,
+			UserID:    42,
+			Token:     "test-token",
+		})
+	}
 
-	// Add JSON data field
-	if data != "" {
-		writer.WriteField("data", data)
-	}
-	if filename != "" {
-		part, err := writer.CreateFormFile("file", filename)
-		if err != nil {
-			return nil, err
-		}
-		if len(fileContent) > 0 {
-			part.Write(fileContent)
-		}
-	}
-	writer.Close()
-	req, err := http.NewRequest(method, path, body)
+	router := SetupTestApi(mock, func(r *gin.Engine) {
+		r.Handle(options.Method, options.Path, handlerFunc)
+	})
+
+	req, err := CreateTestRequest(options)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	if err != nil {
-		return nil, err
+	if options.Auth {
+		req.Header.Set("Authorization", "Bearer test-token")
 	}
-	req.Header.Set("Authorization", "Bearer test-token")
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w.Result(), nil

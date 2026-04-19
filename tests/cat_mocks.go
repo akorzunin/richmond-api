@@ -27,7 +27,10 @@ var TestCatRecord = db.Cat{
 }
 
 // CreateCat implements Querier
-func (m *MockQuerier) CreateCat(ctx context.Context, params db.CreateCatParams) (db.Cat, error) {
+func (m *MockQuerier) CreateCat(
+	ctx context.Context,
+	params db.CreateCatParams,
+) (db.Cat, error) {
 	return db.Cat{
 		CatID:     1,
 		UserID:    params.UserID,
@@ -40,7 +43,10 @@ func (m *MockQuerier) CreateCat(ctx context.Context, params db.CreateCatParams) 
 }
 
 // GetCatByID implements Querier
-func (m *MockQuerier) GetCatByID(ctx context.Context, catID int32) (db.Cat, error) {
+func (m *MockQuerier) GetCatByID(
+	ctx context.Context,
+	catID int32,
+) (db.Cat, error) {
 	if catID == 1 {
 		return TestCatRecord, nil
 	}

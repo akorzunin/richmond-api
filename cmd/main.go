@@ -8,6 +8,7 @@ import (
 	_ "richmond-api/docs"
 	"richmond-api/internal/api/cat"
 	h "richmond-api/internal/api/health"
+	"richmond-api/internal/api/tx"
 	"richmond-api/internal/api/user"
 	"richmond-api/internal/db"
 	"richmond-api/internal/s3"
@@ -34,7 +35,12 @@ func main() {
 
 	// Initialize handlers
 	userHandler := user.NewUserHandler(queries)
-	catHandler := cat.NewCatHandler(queries, pool, s3Client)
+	catHandler := cat.NewCatHandler(
+		&tx.QuerierAdapter{Queries: queries},
+		&tx.PoolAdapter{Pool: pool},
+		&s3.S3Adapter{Client: s3Client.Client, Bucket: s3Client.Bucket},
+		s3Client.Bucket,
+	)
 
 	r.GET("/health", h.Health)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

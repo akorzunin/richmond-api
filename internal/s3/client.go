@@ -107,3 +107,16 @@ func EnsureBucketExists(client *minio.Client, bucketName string) error {
 
 	return nil
 }
+
+type S3Adapter struct {
+	Client *minio.Client
+	Bucket string
+}
+
+func (s *S3Adapter) Upload(key string, data []byte) error {
+	return UploadImage(s.Client, s.Bucket, key, data)
+}
+
+func (s *S3Adapter) Endpoint() string {
+	return s.Client.EndpointURL().Host
+}
