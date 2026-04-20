@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"richmond-api/internal/api/errors"
 	e "richmond-api/internal/api/errors"
 	"richmond-api/internal/db"
 
@@ -14,24 +15,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// CreateRequest is the request body for creating a user
 type CreateRequest struct {
 	Login    string `json:"login"    binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
-// LoginRequest is the request body for login
 type LoginRequest struct {
 	Login    string `json:"login"    binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
-// UserResponse is the response for user data (no password)
 type UserResponse struct {
 	Login string `json:"login"`
 }
 
-// TokenResponse is the response for login
 type TokenResponse struct {
 	Token string `json:"token"`
 }
@@ -66,37 +63,22 @@ func NewUserHandler(queries Querier) *UserHandler {
 func (h *UserHandler) Create(c *gin.Context) {
 	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(
-			http.StatusBadRequest,
-			e.ErrorResponse{Error: "invalid request"},
-		)
+		errors.BadRequest(c, "invalid request")
 		return
 	}
-
-	// Check if user exists
 	_, err := h.queries.GetUserByName(c.Request.Context(), req.Login)
 	if err == nil {
-		c.JSON(
-			http.StatusConflict,
-			e.ErrorResponse{Error: "user already exists"},
-		)
+		errors.Conflict(c, "user already exists")
 		return
 	}
-
-	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword(
 		[]byte(req.Password),
 		bcrypt.DefaultCost,
 	)
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to hash password"},
-		)
+		errors.InternalError(c, "failed to hash password")
 		return
 	}
-
-	// Create user
 	user, err := h.queries.CreateUser(c.Request.Context(), db.CreateUserParams{
 		UserName: req.Login,
 		UserPass: string(hashedPassword),
@@ -108,7 +90,6 @@ func (h *UserHandler) Create(c *gin.Context) {
 		)
 		return
 	}
-
 	c.JSON(http.StatusCreated, UserResponse{Login: user.UserName})
 }
 
@@ -124,36 +105,23 @@ func (h *UserHandler) Create(c *gin.Context) {
 func (h *UserHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: "invalid request"})
+		errors.BadRequest(c, "invalid request")
 		return
 	}
-
-	// Get user
 	user, err := h.queries.GetUserByName(c.Request.Context(), req.Login)
 	if err != nil {
-		c.JSON(
-			http.StatusUnauthorized,
-			e.ErrorResponse{Error: "invalid credentials"},
-		)
+		errors.Unauthorized(c, "invalid credentials")
 		return
 	}
-
-	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPass), []byte(req.Password)); err != nil {
-		c.JSON(
-			http.StatusUnauthorized,
-			e.ErrorResponse{Error: "invalid credentials"},
-		)
+		errors.Unauthorized(c, "invalid credentials")
 		return
 	}
-
-	// Create session token
 	token := uuid.New().String()
 	expiresAt := pgtype.Timestamp{
 		Time:  time.Now().Add(1 * time.Hour),
 		Valid: true,
 	}
-
 	_, err = h.queries.CreateSession(
 		c.Request.Context(),
 		db.CreateSessionParams{
@@ -163,13 +131,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 		},
 	)
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to create session"},
-		)
+		errors.InternalError(c, "failed to create session")
 		return
 	}
-
 	c.JSON(http.StatusOK, TokenResponse{Token: token})
 }
 
@@ -185,15 +149,13 @@ func (h *UserHandler) Login(c *gin.Context) {
 func (h *UserHandler) Get(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, e.ErrorResponse{Error: "unauthorized"})
+		errors.Unauthorized(c, "unauthorized")
 		return
 	}
-
 	user, err := h.queries.GetUserByID(c.Request.Context(), userID.(int32))
 	if err != nil {
-		c.JSON(http.StatusNotFound, e.ErrorResponse{Error: "user not found"})
+		errors.NotFound(c, "user not found")
 		return
 	}
-
 	c.JSON(http.StatusOK, UserResponse{Login: user.UserName})
 }

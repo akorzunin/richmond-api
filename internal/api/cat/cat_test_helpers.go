@@ -63,13 +63,10 @@ func createTestRequest(
 	return req, nil
 }
 
-// testHandler executes a handler with auth middleware
-func testHandler(handlerFunc gin.HandlerFunc) *http.Response {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-
-	// Auth middleware
-	router.Use(func(c *gin.Context) {
+// testAuthMiddleware is a simple auth middleware for tests.
+// It validates the Bearer token against the provided token parameter.
+func testAuthMiddleware(token string) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(
@@ -80,18 +77,16 @@ func testHandler(handlerFunc gin.HandlerFunc) *http.Response {
 			return
 		}
 
-		// Extract Bearer token
-		var token string
+		var t string
 		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			token = authHeader[7:]
+			t = authHeader[7:]
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
 			c.Abort()
 			return
 		}
 
-		// For testing, we accept "test-token" as valid
-		if token != "test-token" {
+		if t != token {
 			c.JSON(
 				http.StatusUnauthorized,
 				gin.H{"error": "invalid or expired token"},
@@ -102,8 +97,15 @@ func testHandler(handlerFunc gin.HandlerFunc) *http.Response {
 
 		c.Set("user_id", int32(42))
 		c.Next()
-	})
+	}
+}
 
+// testHandler executes a handler with auth middleware
+func testHandler(handlerFunc gin.HandlerFunc) *http.Response {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	router.Use(testAuthMiddleware("test-token"))
 	router.Handle("POST", "/api/v1/cat/new", handlerFunc)
 
 	req, _ := createTestRequest(
@@ -157,40 +159,7 @@ func testReqWithAuth(
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	// Auth middleware
-	router.Use(func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(
-				http.StatusUnauthorized,
-				gin.H{"error": "authorization header required"},
-			)
-			c.Abort()
-			return
-		}
-
-		var t string
-		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			t = authHeader[7:]
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
-			c.Abort()
-			return
-		}
-
-		if t != token {
-			c.JSON(
-				http.StatusUnauthorized,
-				gin.H{"error": "invalid or expired token"},
-			)
-			c.Abort()
-			return
-		}
-
-		c.Set("user_id", int32(42))
-		c.Next()
-	})
-
+	router.Use(testAuthMiddleware(token))
 	router.Handle(method, path, handlerFunc)
 
 	req, _ := createTestRequest(method, path, data, filename)
@@ -227,40 +196,7 @@ func testReqWithAuthAndFile(
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	// Auth middleware
-	router.Use(func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(
-				http.StatusUnauthorized,
-				gin.H{"error": "authorization header required"},
-			)
-			c.Abort()
-			return
-		}
-
-		var t string
-		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			t = authHeader[7:]
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
-			c.Abort()
-			return
-		}
-
-		if t != token {
-			c.JSON(
-				http.StatusUnauthorized,
-				gin.H{"error": "invalid or expired token"},
-			)
-			c.Abort()
-			return
-		}
-
-		c.Set("user_id", int32(42))
-		c.Next()
-	})
-
+	router.Use(testAuthMiddleware(token))
 	router.Handle(method, path, handlerFunc)
 
 	body := &bytes.Buffer{}

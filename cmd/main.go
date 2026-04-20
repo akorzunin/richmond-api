@@ -6,6 +6,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "richmond-api/docs"
+	"richmond-api/internal/api/auth"
 	"richmond-api/internal/api/cat"
 	h "richmond-api/internal/api/health"
 	"richmond-api/internal/api/tx"
@@ -49,11 +50,11 @@ func main() {
 	userGroup := r.Group("/api/v1/user")
 	userGroup.POST("/new", userHandler.Create)
 	userGroup.POST("/login", userHandler.Login)
-	userGroup.GET("", user.AuthMiddleware(queries), userHandler.Get)
+	userGroup.GET("", auth.Middleware(queries), userHandler.Get)
 
 	// Cat API
 	catGroup := r.Group("/api/v1/cat")
-	catGroup.POST("/new", user.AuthMiddleware(queries), catHandler.CreateCat)
+	catGroup.POST("/new", auth.Middleware(queries), catHandler.CreateCat)
 
 	r.Run(":8080")
 }

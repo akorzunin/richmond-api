@@ -25,13 +25,29 @@ func NewMockS3Client() *s3.S3Config {
 	}
 }
 
-// MockS3Uploader implements S3Uploader for testing
-type MockS3Uploader struct{}
-
-func (m *MockS3Uploader) Upload(key string, data []byte) error {
-	return nil
+// MockS3Adapter wraps s3.S3Adapter for testing with no-op upload
+type MockS3Adapter struct {
+	*s3.S3Adapter
 }
 
-func (m *MockS3Uploader) Endpoint() string {
-	return "localhost:9999"
+// NewMockS3Adapter creates a new MockS3Adapter for testing
+func NewMockS3Adapter() *MockS3Adapter {
+	client, _ := minio.New("localhost:9999", &minio.Options{
+		Creds:  credentials.NewStaticV4("test", "test", ""),
+		Secure: false,
+	})
+	return &MockS3Adapter{
+		S3Adapter: &s3.S3Adapter{
+			Client: client,
+			Bucket: "test-bucket",
+		},
+	}
+}
+
+// Upload is a no-op for testing - overrides the embedded S3Adapter.Upload
+func (m *MockS3Adapter) Upload(
+	key string,
+	data []byte,
+) (*minio.UploadInfo, error) {
+	return nil, nil
 }

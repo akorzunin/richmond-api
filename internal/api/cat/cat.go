@@ -19,7 +19,6 @@ import (
 	e "richmond-api/internal/api/errors"
 	"richmond-api/internal/api/tx"
 	"richmond-api/internal/db"
-	"richmond-api/internal/s3"
 )
 
 type Querier interface {
@@ -58,51 +57,29 @@ type CreateCatResponse struct {
 	GalleryPhotos []FileMetadata `json:"gallery_photos"`
 }
 
-type Pool interface {
-	Begin(ctx context.Context) (tx.TxRunner, error)
-}
-
 // S3Uploader defines the interface for uploading files to S3
 type S3Uploader interface {
-	Upload(key string, data []byte) error
+	Upload(key string, data []byte) (*minio.UploadInfo, error)
 	Endpoint() string
-}
-
-// s3Client wraps *minio.Client to implement S3Uploader
-type s3Client struct {
-	client *minio.Client
-	bucket string
-}
-
-func newS3Client(client *minio.Client, bucket string) *s3Client {
-	return &s3Client{client: client, bucket: bucket}
-}
-
-func (s *s3Client) Upload(key string, data []byte) error {
-	return s3.UploadImage(s.client, s.bucket, key, data)
-}
-
-func (s *s3Client) Endpoint() string {
-	return s.client.EndpointURL().Host
 }
 
 type CatHandler struct {
 	queries Querier
-	db      Pool
+	db      tx.Pool
 	s3      S3Uploader
 	bucket  string
 }
 
 func NewCatHandler(
 	queries Querier,
-	db Pool,
-	s3Client S3Uploader,
+	db tx.Pool,
+	s3Adapter S3Uploader,
 	bucket string,
 ) *CatHandler {
 	return &CatHandler{
 		queries: queries,
 		db:      db,
-		s3:      s3Client,
+		s3:      s3Adapter,
 		bucket:  bucket,
 	}
 }
@@ -471,7 +448,7 @@ func processFile(
 	}
 
 	// Upload to S3
-	if err := uploader.Upload(key, data); err != nil {
+	if _, err := uploader.Upload(key, data); err != nil {
 		return nil, fmt.Errorf("failed to upload to S3: %w", err)
 	}
 

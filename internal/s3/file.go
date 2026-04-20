@@ -11,14 +11,8 @@ import (
 
 // CreateFile uploads file data to S3 with application/octet-stream content type.
 func CreateFile(client *minio.Client, bucket, key string, data []byte) error {
-	if client == nil {
-		return fmt.Errorf("S3 client is nil")
-	}
-	if bucket == "" {
-		return fmt.Errorf("bucket name is required")
-	}
-	if key == "" {
-		return fmt.Errorf("object key is required")
+	if err := ValidateParams(client, bucket, key); err != nil {
+		return err
 	}
 	if len(data) == 0 {
 		return fmt.Errorf("data is empty")
@@ -39,14 +33,8 @@ func CreateFile(client *minio.Client, bucket, key string, data []byte) error {
 
 // GetFile downloads a file from S3 and returns the bytes.
 func GetFile(client *minio.Client, bucket, key string) ([]byte, error) {
-	if client == nil {
-		return nil, fmt.Errorf("S3 client is nil")
-	}
-	if bucket == "" {
-		return nil, fmt.Errorf("bucket name is required")
-	}
-	if key == "" {
-		return nil, fmt.Errorf("object key is required")
+	if err := ValidateParams(client, bucket, key); err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

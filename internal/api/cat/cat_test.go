@@ -18,8 +18,8 @@ const testCatJSON = `{
 func TestCreateCat_Success(t *testing.T) {
 	handler := NewCatHandler(
 		tests.NewMockQuerier(),
-		tests.NewMockPool(),
-		&tests.MockS3Uploader{},
+		&tests.MockPool{},
+		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
 	res, err := testReq(
@@ -42,7 +42,7 @@ func TestCreateCat_MissingTitlePhoto(t *testing.T) {
 	handler := NewCatHandler(
 		&tests.MockQuerier{},
 		&tests.MockPool{},
-		&tests.MockS3Uploader{},
+		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
 	res, err := testReq(
@@ -64,7 +64,7 @@ func TestCreateCat_MissingData(t *testing.T) {
 	handler := NewCatHandler(
 		tests.NewMockQuerier(),
 		&tests.MockPool{},
-		&tests.MockS3Uploader{},
+		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
 	res, err := testReq("POST", "/api/v1/cat/new", "", "cat.jpg", handler)
@@ -80,7 +80,7 @@ func TestCreateCat_InvalidJSON(t *testing.T) {
 	handler := NewCatHandler(
 		tests.NewMockQuerier(),
 		&tests.MockPool{},
-		&tests.MockS3Uploader{},
+		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
 	res, err := testReq(
@@ -101,8 +101,8 @@ func TestCreateCat_InvalidJSON(t *testing.T) {
 func TestCreateCat_InvalidFileType(t *testing.T) {
 	handler := NewCatHandler(
 		tests.NewMockQuerier(),
-		tests.NewMockPool(),
-		&tests.MockS3Uploader{},
+		&tests.MockPool{},
+		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
 	pdfMagicBytes := []byte{0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34}
@@ -127,7 +127,7 @@ func TestCreateCat_Unauthorized(t *testing.T) {
 	handler := NewCatHandler(
 		tests.NewMockQuerier(),
 		&tests.MockPool{},
-		&tests.MockS3Uploader{},
+		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
 	res, err := testReqNoAuth(
