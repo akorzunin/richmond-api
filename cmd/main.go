@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -19,6 +20,7 @@ import (
 // @version 0.1.0
 // @description Backend for richmond app
 func main() {
+	godotenv.Load("../.env")
 	r := gin.Default()
 
 	// Connect to database

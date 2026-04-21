@@ -12,11 +12,7 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("Warning: .env file not found")
-	}
-
+	godotenv.Load()
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s <command> [arguments]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\nCommands:\n")

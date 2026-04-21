@@ -446,20 +446,14 @@ func processFile(
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file data: %w", err)
 	}
-
-	// Upload to S3
 	if _, err := uploader.Upload(key, data); err != nil {
 		return nil, fmt.Errorf("failed to upload to S3: %w", err)
 	}
-
-	// Build public URL
 	url := fmt.Sprintf(
-		"https://%s/%s/%s",
-		uploader.Endpoint(),
+		"http://rustfs:9000/%s/%s",
 		bucket,
 		key,
 	)
-
 	return &FileMetadata{
 		Key:    key,
 		URL:    url,
