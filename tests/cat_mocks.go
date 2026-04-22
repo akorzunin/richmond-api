@@ -31,15 +31,17 @@ func (m *MockQuerier) CreateCat(
 	ctx context.Context,
 	params db.CreateCatParams,
 ) (db.Cat, error) {
-	return db.Cat{
-		CatID:     1,
+	newCat := db.Cat{
+		CatID:     int32(len(m.cats) + 1),
 		UserID:    params.UserID,
 		Name:      params.Name,
 		BirthDate: params.BirthDate,
 		Breed:     params.Breed,
 		Weight:    params.Weight,
 		Habits:    params.Habits,
-	}, nil
+	}
+	m.cats = append(m.cats, newCat)
+	return newCat, nil
 }
 
 // GetCatByID implements Querier
@@ -47,8 +49,10 @@ func (m *MockQuerier) GetCatByID(
 	ctx context.Context,
 	catID int32,
 ) (db.Cat, error) {
-	if catID == 1 {
-		return TestCatRecord, nil
+	for _, cat := range m.cats {
+		if cat.CatID == catID {
+			return cat, nil
+		}
 	}
 	return db.Cat{}, errors.New("cat not found")
 }

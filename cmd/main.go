@@ -56,7 +56,11 @@ func main() {
 
 	// Cat API
 	catGroup := r.Group("/api/v1/cat")
+	catGroup.GET("/all", catHandler.ListCats)
+	catGroup.GET("/:id", catHandler.GetCat)
 	catGroup.POST("/new", auth.Middleware(queries), catHandler.CreateCat)
+	catGroup.PUT("/:id", auth.Middleware(queries), catHandler.UpdateCat)
+	catGroup.DELETE("/:id", auth.Middleware(queries), catHandler.DeleteCat)
 
 	r.Run(":8080")
 }

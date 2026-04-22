@@ -1,4 +1,29 @@
 definitions:
+  internal_api_cat.CatResponse:
+    properties:
+      birth_date:
+        type: string
+      breed:
+        type: string
+      cat_id:
+        type: integer
+      created_at:
+        type: string
+      gallery_photos:
+        items:
+          $ref: '#/definitions/internal_api_cat.FileMetadata'
+        type: array
+      habits:
+        type: string
+      name:
+        type: string
+      title_photo:
+        $ref: '#/definitions/internal_api_cat.FileMetadata'
+      user_id:
+        type: integer
+      weight:
+        type: number
+    type: object
   internal_api_cat.CreateCatResponse:
     properties:
       cat_id:
@@ -24,6 +49,32 @@ definitions:
         type: string
       width:
         type: integer
+    type: object
+  internal_api_cat.ListCatsResponse:
+    properties:
+      cats:
+        items:
+          $ref: '#/definitions/internal_api_cat.CatResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_api_cat.UpdateCatRequest:
+    properties:
+      birth_date:
+        type: string
+      breed:
+        type: string
+      habits:
+        type: string
+      name:
+        type: string
+      weight:
+        type: number
     type: object
   internal_api_health.HealthResponse:
     properties:
@@ -71,6 +122,141 @@ info:
   title: richmond-api
   version: 0.1.0
 paths:
+  /api/v1/cat/{id}:
+    delete:
+      description: Deletes a cat by ID (auth required, must be owner)
+      parameters:
+      - description: Cat ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a cat
+      tags:
+      - cat
+    get:
+      description: Gets a cat with photos by ID
+      parameters:
+      - description: Cat ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_cat.CatResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      summary: Get a cat by ID
+      tags:
+      - cat
+    put:
+      consumes:
+      - application/json
+      description: Updates a cat by ID (auth required, must be owner)
+      parameters:
+      - description: Cat ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_cat.UpdateCatRequest'
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_cat.CatResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a cat
+      tags:
+      - cat
+  /api/v1/cat/all:
+    get:
+      description: Lists cats with pagination (no auth required)
+      parameters:
+      - description: Limit (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_cat.ListCatsResponse'
+      summary: List all cats
+      tags:
+      - cat
   /api/v1/cat/new:
     post:
       consumes:

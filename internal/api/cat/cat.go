@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,10 @@ type Querier interface {
 	GetSessionByToken(ctx context.Context, token string) (db.Session, error)
 	DeleteSession(ctx context.Context, token string) error
 	DeleteUserSessions(ctx context.Context, userID int32) error
+	ListCats(ctx context.Context, arg db.ListCatsParams) ([]db.Cat, error)
+	UpdateCat(ctx context.Context, arg db.UpdateCatParams) (db.Cat, error)
+	DeleteCat(ctx context.Context, arg db.DeleteCatParams) error
+	GetFilesByCatID(ctx context.Context, catID pgtype.Int4) ([]db.File, error)
 	WithTx(tx tx.TxRunner) db.TxQuerier
 }
 
@@ -57,6 +62,37 @@ type CreateCatResponse struct {
 	GalleryPhotos []FileMetadata `json:"gallery_photos"`
 }
 
+// CatResponse represents a cat with photos
+type CatResponse struct {
+	CatID         int32          `json:"cat_id"`
+	UserID        int32          `json:"user_id"`
+	Name          string         `json:"name"`
+	BirthDate     string         `json:"birth_date"`
+	Breed         string         `json:"breed"`
+	Weight        float64        `json:"weight"`
+	Habits        string         `json:"habits"`
+	CreatedAt     string         `json:"created_at"`
+	TitlePhoto    FileMetadata   `json:"title_photo"`
+	GalleryPhotos []FileMetadata `json:"gallery_photos"`
+}
+
+// UpdateCatRequest represents the JSON data for updating a cat (all fields optional)
+type UpdateCatRequest struct {
+	Name      *string  `json:"name,omitempty"`
+	BirthDate *string  `json:"birth_date,omitempty"`
+	Breed     *string  `json:"breed,omitempty"`
+	Habits    *string  `json:"habits,omitempty"`
+	Weight    *float64 `json:"weight,omitempty"`
+}
+
+// ListCatsResponse represents the response for listing cats
+type ListCatsResponse struct {
+	Cats   []CatResponse `json:"cats"`
+	Limit  int32         `json:"limit"`
+	Offset int32         `json:"offset"`
+	Total  int32         `json:"total"`
+}
+
 // S3Uploader defines the interface for uploading files to S3
 type S3Uploader interface {
 	Upload(key string, data []byte) (*minio.UploadInfo, error)
@@ -81,6 +117,59 @@ func NewCatHandler(
 		db:      db,
 		s3:      s3Adapter,
 		bucket:  bucket,
+	}
+}
+
+// catResponseFromDB converts a db.Cat to CatResponse with optional file loading
+func catResponseFromDB(cat db.Cat, files []db.File) CatResponse {
+	var titlePhoto FileMetadata
+	var galleryPhotos []FileMetadata
+
+	if len(files) > 0 {
+		titlePhoto = FileMetadata{
+			Key:    files[0].Key,
+			URL:    files[0].Url,
+			Width:  int(files[0].Width),
+			Height: int(files[0].Height),
+			Size:   files[0].Size,
+			Type:   files[0].Type,
+		}
+		if len(files) > 1 {
+			galleryPhotos = make([]FileMetadata, len(files)-1)
+			for i, f := range files[1:] {
+				galleryPhotos[i] = FileMetadata{
+					Key:    f.Key,
+					URL:    f.Url,
+					Width:  int(f.Width),
+					Height: int(f.Height),
+					Size:   f.Size,
+					Type:   f.Type,
+				}
+			}
+		}
+	}
+
+	var birthDate string
+	if cat.BirthDate.Valid {
+		birthDate = cat.BirthDate.Time.Format("2006-01-02")
+	}
+
+	var createdAt string
+	if cat.CreatedAt.Valid {
+		createdAt = cat.CreatedAt.Time.Format("2006-01-02T15:04:05Z")
+	}
+
+	return CatResponse{
+		CatID:         cat.CatID,
+		UserID:        cat.UserID,
+		Name:          cat.Name,
+		BirthDate:     birthDate,
+		Breed:         cat.Breed,
+		Weight:        cat.Weight,
+		Habits:        cat.Habits,
+		CreatedAt:     createdAt,
+		TitlePhoto:    titlePhoto,
+		GalleryPhotos: galleryPhotos,
 	}
 }
 
@@ -462,4 +551,308 @@ func processFile(
 		Width:  0, // Will be extracted in future
 		Height: 0,
 	}, nil
+}
+
+// ListCats handles GET /api/v1/cat/all
+// @Summary List all cats
+// @Description Lists cats with pagination (no auth required)
+// @Tags cat
+// @Produce json
+// @Param limit query int false "Limit (default 20, max 100)"
+// @Param offset query int false "Offset (default 0)"
+// @Success 200 {object} ListCatsResponse
+// @Router /api/v1/cat/all [get]
+func (h *CatHandler) ListCats(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Parse query params with defaults
+	limitStr := c.DefaultQuery("limit", "20")
+	offsetStr := c.DefaultQuery("offset", "0")
+
+	limit, err := strconv.ParseInt(limitStr, 10, 32)
+	if err != nil || limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	offset, err := strconv.ParseInt(offsetStr, 10, 32)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	// Fetch cats with pagination
+	cats, err := h.queries.ListCats(ctx, db.ListCatsParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		e.InternalError(c, "failed to fetch cats: "+err.Error())
+		return
+	}
+
+	// Build response with files for each cat
+	var catResponses []CatResponse
+	for _, cat := range cats {
+		files, err := h.queries.GetFilesByCatID(
+			ctx,
+			pgtype.Int4{Int32: cat.CatID, Valid: true},
+		)
+		if err != nil {
+			e.InternalError(c, "failed to fetch cat files: "+err.Error())
+			return
+		}
+		catResponses = append(catResponses, catResponseFromDB(cat, files))
+	}
+
+	if catResponses == nil {
+		catResponses = []CatResponse{}
+	}
+
+	c.JSON(http.StatusOK, ListCatsResponse{
+		Cats:   catResponses,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+		Total:  int32(len(cats)),
+	})
+}
+
+// GetCat handles GET /api/v1/cat/:id
+// @Summary Get a cat by ID
+// @Description Gets a cat with photos by ID
+// @Tags cat
+// @Produce json
+// @Param id path int true "Cat ID"
+// @Success 200 {object} CatResponse
+// @Failure 401 {object} e.ErrorResponse
+// @Failure 404 {object} e.ErrorResponse
+// @Router /api/v1/cat/{id} [get]
+func (h *CatHandler) GetCat(c *gin.Context) {
+	ctx := c.Request.Context()
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: "invalid cat id"})
+		return
+	}
+	cat, err := h.queries.GetCatByID(ctx, int32(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, e.ErrorResponse{Error: "cat not found"})
+		return
+	}
+	files, err := h.queries.GetFilesByCatID(
+		ctx,
+		pgtype.Int4{Int32: cat.CatID, Valid: true},
+	)
+	if err != nil {
+		e.InternalError(c, "failed to fetch cat files: "+err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, catResponseFromDB(cat, files))
+}
+
+// UpdateCat handles PUT /api/v1/cat/:id
+// @Summary Update a cat
+// @Description Updates a cat by ID (auth required, must be owner)
+// @Tags cat
+// @Accept json
+// @Produce json
+// @Param id path int true "Cat ID"
+// @Param data body UpdateCatRequest true "Update data"
+// @Success 200 {object} CatResponse
+// @Failure 400 {object} e.ErrorResponse
+// @Failure 401 {object} e.ErrorResponse
+// @Failure 403 {object} e.ErrorResponse
+// @Failure 404 {object} e.ErrorResponse
+// @Router /api/v1/cat/{id} [put]
+// @Security BearerAuth
+// @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
+func (h *CatHandler) UpdateCat(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Auth check
+	anyUserID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, e.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	userID := anyUserID.(int32)
+
+	// Parse cat ID from path
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: "invalid cat id"})
+		return
+	}
+
+	// Fetch cat to check ownership
+	cat, err := h.queries.GetCatByID(ctx, int32(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, e.ErrorResponse{Error: "cat not found"})
+		return
+	}
+
+	// Ownership check
+	if cat.UserID != userID {
+		c.JSON(http.StatusForbidden, e.ErrorResponse{Error: "forbidden"})
+		return
+	}
+
+	// Bind JSON to request
+	var req UpdateCatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(
+			http.StatusBadRequest,
+			e.ErrorResponse{Error: "invalid request body"},
+		)
+		return
+	}
+
+	// Parse birth_date if provided
+	var birthDate pgtype.Date
+	birthDate.Valid = false
+	if req.BirthDate != nil && *req.BirthDate != "" {
+		parsed, err := time.Parse("2006-01-02", *req.BirthDate)
+		if err != nil {
+			c.JSON(
+				http.StatusBadRequest,
+				e.ErrorResponse{
+					Error: "invalid birth_date format, use YYYY-MM-DD",
+				},
+			)
+			return
+		}
+		birthDate = pgtype.Date{Time: parsed, Valid: true}
+	}
+
+	// Validate weight if provided
+	if req.Weight != nil && *req.Weight < 0 {
+		c.JSON(
+			http.StatusBadRequest,
+			e.ErrorResponse{Error: "weight cannot be negative"},
+		)
+		return
+	}
+
+	// Build update params - always set all fields, COALESCE in SQL keeps existing values for nulls
+	updateParams := db.UpdateCatParams{
+		CatID:     cat.CatID,
+		UserID:    cat.UserID,
+		Name:      cat.Name,
+		BirthDate: cat.BirthDate,
+		Breed:     cat.Breed,
+		Weight:    cat.Weight,
+		Habits:    cat.Habits,
+	}
+
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			c.JSON(
+				http.StatusBadRequest,
+				e.ErrorResponse{Error: "name cannot be empty"},
+			)
+			return
+		}
+		updateParams.Name = name
+	}
+	if req.BirthDate != nil {
+		updateParams.BirthDate = birthDate
+	}
+	if req.Breed != nil {
+		updateParams.Breed = *req.Breed
+	}
+	if req.Habits != nil {
+		updateParams.Habits = *req.Habits
+	}
+	if req.Weight != nil {
+		updateParams.Weight = *req.Weight
+	}
+
+	// Perform update
+	updatedCat, err := h.queries.UpdateCat(ctx, updateParams)
+	if err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{Error: "failed to update cat"},
+		)
+		return
+	}
+
+	// Fetch updated files
+	files, err := h.queries.GetFilesByCatID(
+		ctx,
+		pgtype.Int4{Int32: updatedCat.CatID, Valid: true},
+	)
+	if err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{Error: "failed to fetch cat files"},
+		)
+		return
+	}
+
+	c.JSON(http.StatusOK, catResponseFromDB(updatedCat, files))
+}
+
+// DeleteCat handles DELETE /api/v1/cat/:id
+// @Summary Delete a cat
+// @Description Deletes a cat by ID (auth required, must be owner)
+// @Tags cat
+// @Produce json
+// @Param id path int true "Cat ID"
+// @Success 204
+// @Failure 401 {object} e.ErrorResponse
+// @Failure 403 {object} e.ErrorResponse
+// @Failure 404 {object} e.ErrorResponse
+// @Router /api/v1/cat/{id} [delete]
+// @Security BearerAuth
+// @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
+func (h *CatHandler) DeleteCat(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Auth check
+	anyUserID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, e.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	userID := anyUserID.(int32)
+
+	// Parse cat ID from path
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: "invalid cat id"})
+		return
+	}
+
+	// Fetch cat to check ownership
+	cat, err := h.queries.GetCatByID(ctx, int32(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, e.ErrorResponse{Error: "cat not found"})
+		return
+	}
+
+	// Ownership check
+	if cat.UserID != userID {
+		c.JSON(http.StatusForbidden, e.ErrorResponse{Error: "forbidden"})
+		return
+	}
+
+	// Delete cat
+	if err := h.queries.DeleteCat(ctx, db.DeleteCatParams{
+		CatID:  cat.CatID,
+		UserID: userID,
+	}); err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{Error: "failed to delete cat"},
+		)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

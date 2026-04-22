@@ -6,6 +6,8 @@ import (
 
 	"richmond-api/internal/api/tx"
 	"richmond-api/internal/db"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // MockQuerier implements the Querier interface for testing
@@ -17,6 +19,79 @@ type MockQuerier struct {
 		CreateFile(ctx context.Context, params db.CreateFileParams) (db.File, error)
 		CreateCat(ctx context.Context, params db.CreateCatParams) (db.Cat, error)
 	}
+}
+
+// ListCats implements cat.Querier.
+func (m *MockQuerier) ListCats(
+	ctx context.Context,
+	arg db.ListCatsParams,
+) ([]db.Cat, error) {
+	if len(m.cats) == 0 {
+		return []db.Cat{}, nil
+	}
+	limit := arg.Limit
+	if limit <= 0 || int(limit) > len(m.cats) {
+		limit = int32(len(m.cats))
+	}
+	offset := arg.Offset
+	if offset < 0 || int(offset) > len(m.cats) {
+		offset = 0
+	}
+	end := int(offset) + int(limit)
+	if end > len(m.cats) {
+		end = len(m.cats)
+	}
+	return m.cats[offset:end], nil
+}
+
+// UpdateCat implements cat.Querier.
+func (m *MockQuerier) UpdateCat(
+	ctx context.Context,
+	arg db.UpdateCatParams,
+) (db.Cat, error) {
+	for i, cat := range m.cats {
+		if cat.CatID == arg.CatID {
+			// Return updated cat - in mock we just update the fields
+			m.cats[i].Name = arg.Name
+			m.cats[i].Breed = arg.Breed
+			m.cats[i].Weight = arg.Weight
+			m.cats[i].Habits = arg.Habits
+			return m.cats[i], nil
+		}
+	}
+	return db.Cat{}, errors.New("cat not found")
+}
+
+// DeleteCat implements cat.Querier.
+func (m *MockQuerier) DeleteCat(
+	ctx context.Context,
+	arg db.DeleteCatParams,
+) error {
+	for i, cat := range m.cats {
+		if cat.CatID == arg.CatID {
+			// Remove cat from slice
+			m.cats = append(m.cats[:i], m.cats[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("cat not found")
+}
+
+// GetFilesByCatID implements cat.Querier.
+func (m *MockQuerier) GetFilesByCatID(
+	ctx context.Context,
+	catID pgtype.Int4,
+) ([]db.File, error) {
+	if !catID.Valid {
+		return []db.File{}, nil
+	}
+	var files []db.File
+	for _, f := range m.files {
+		if f.CatID.Valid && f.CatID.Int32 == catID.Int32 {
+			files = append(files, f)
+		}
+	}
+	return files, nil
 }
 
 // NewMockQuerier creates a new mockQuerier

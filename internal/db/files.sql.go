@@ -86,3 +86,41 @@ func (q *Queries) GetFileByID(ctx context.Context, id int32) (File, error) {
 	)
 	return i, err
 }
+
+const getFilesByCatID = `-- name: GetFilesByCatID :many
+SELECT id, user_id, cat_id, post_id, key, url, width, height, size, quality, type, created_at, updated_at FROM files WHERE cat_id = $1 ORDER BY created_at
+`
+
+func (q *Queries) GetFilesByCatID(ctx context.Context, catID pgtype.Int4) ([]File, error) {
+	rows, err := q.db.Query(ctx, getFilesByCatID, catID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []File
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CatID,
+			&i.PostID,
+			&i.Key,
+			&i.Url,
+			&i.Width,
+			&i.Height,
+			&i.Size,
+			&i.Quality,
+			&i.Type,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

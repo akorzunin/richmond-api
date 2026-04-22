@@ -50,12 +50,112 @@ func (q *Queries) CreateCat(ctx context.Context, arg CreateCatParams) (Cat, erro
 	return i, err
 }
 
+const deleteCat = `-- name: DeleteCat :exec
+DELETE FROM cats WHERE cat_id = $1 AND user_id = $2
+`
+
+type DeleteCatParams struct {
+	CatID  int32 `json:"cat_id"`
+	UserID int32 `json:"user_id"`
+}
+
+func (q *Queries) DeleteCat(ctx context.Context, arg DeleteCatParams) error {
+	_, err := q.db.Exec(ctx, deleteCat, arg.CatID, arg.UserID)
+	return err
+}
+
 const getCatByID = `-- name: GetCatByID :one
 SELECT cat_id, user_id, name, birth_date, breed, weight, habits, created_at, updated_at FROM cats WHERE cat_id = $1
 `
 
 func (q *Queries) GetCatByID(ctx context.Context, catID int32) (Cat, error) {
 	row := q.db.QueryRow(ctx, getCatByID, catID)
+	var i Cat
+	err := row.Scan(
+		&i.CatID,
+		&i.UserID,
+		&i.Name,
+		&i.BirthDate,
+		&i.Breed,
+		&i.Weight,
+		&i.Habits,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listCats = `-- name: ListCats :many
+SELECT cat_id, user_id, name, birth_date, breed, weight, habits, created_at, updated_at FROM cats ORDER BY created_at DESC LIMIT $1 OFFSET $2
+`
+
+type ListCatsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListCats(ctx context.Context, arg ListCatsParams) ([]Cat, error) {
+	rows, err := q.db.Query(ctx, listCats, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Cat
+	for rows.Next() {
+		var i Cat
+		if err := rows.Scan(
+			&i.CatID,
+			&i.UserID,
+			&i.Name,
+			&i.BirthDate,
+			&i.Breed,
+			&i.Weight,
+			&i.Habits,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateCat = `-- name: UpdateCat :one
+UPDATE cats
+SET name = COALESCE($2, name),
+    birth_date = COALESCE($3, birth_date),
+    breed = COALESCE($4, breed),
+    weight = COALESCE($5, weight),
+    habits = COALESCE($6, habits),
+    updated_at = NOW()
+WHERE cat_id = $1 AND user_id = $7
+RETURNING cat_id, user_id, name, birth_date, breed, weight, habits, created_at, updated_at
+`
+
+type UpdateCatParams struct {
+	CatID     int32       `json:"cat_id"`
+	Name      string      `json:"name"`
+	BirthDate pgtype.Date `json:"birth_date"`
+	Breed     string      `json:"breed"`
+	Weight    float64     `json:"weight"`
+	Habits    string      `json:"habits"`
+	UserID    int32       `json:"user_id"`
+}
+
+func (q *Queries) UpdateCat(ctx context.Context, arg UpdateCatParams) (Cat, error) {
+	row := q.db.QueryRow(ctx, updateCat,
+		arg.CatID,
+		arg.Name,
+		arg.BirthDate,
+		arg.Breed,
+		arg.Weight,
+		arg.Habits,
+		arg.UserID,
+	)
 	var i Cat
 	err := row.Scan(
 		&i.CatID,
