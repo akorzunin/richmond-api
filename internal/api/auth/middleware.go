@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"richmond-api/internal/api/errors"
 	"richmond-api/internal/db"
 
@@ -15,8 +16,12 @@ const (
 	ErrUnauthorized            = "unauthorized"
 )
 
+type AuthQuerier interface {
+	GetSessionByToken(ctx context.Context, token string) (db.Session, error)
+}
+
 // Middleware validates Bearer tokens and sets user_id in context
-func Middleware(queries *db.Queries) gin.HandlerFunc {
+func Middleware(queries AuthQuerier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

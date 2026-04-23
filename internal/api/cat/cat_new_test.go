@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"richmond-api/internal/api/auth"
 	"richmond-api/internal/db"
 	"richmond-api/tests"
 
@@ -19,32 +20,10 @@ import (
 
 func TestListCats_Success(t *testing.T) {
 	mock := tests.NewMockQuerier()
-	mock.AddCat(db.Cat{
-		CatID:  1,
-		UserID: 1,
-		Name:   "Whiskers",
-		Breed:  "Tabby",
-		BirthDate: pgtype.Date{
-			Time:  time.Date(2023, 1, 15, 0, 0, 0, 0, time.UTC),
-			Valid: true,
-		},
-		Weight: 4.5,
-		Habits: "Sleeping",
-	})
-	mock.AddCat(db.Cat{
-		CatID:  2,
-		UserID: 1,
-		Name:   "Mittens",
-		Breed:  "Siamese",
-		BirthDate: pgtype.Date{
-			Time:  time.Date(2022, 6, 20, 0, 0, 0, 0, time.UTC),
-			Valid: true,
-		},
-		Weight: 3.8,
-		Habits: "Playing",
-	})
+	mock.AddCat(tests.TestCatWhiskers)
+	mock.AddCat(tests.TestCatMittens)
 	handler := NewCatHandler(mock, nil, nil, "test-bucket").ListCats
-	res, err := testReq("GET", "/api/v1/cat/all", "", "", handler)
+	res, err := tests.TestReq("GET", "/api/v1/cat/all", "", "", handler, nil)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -64,9 +43,9 @@ func TestListCats_Success(t *testing.T) {
 }
 
 func TestListCatsPagination(t *testing.T) {
-	// Create 5 test cats
+	const testLen = 5
 	mock := tests.NewMockQuerier()
-	for i := int32(1); i <= 5; i++ {
+	for i := int32(1); i <= testLen; i++ {
 		mock.AddCat(db.Cat{
 			CatID:  i,
 			UserID: 1,
@@ -74,55 +53,74 @@ func TestListCatsPagination(t *testing.T) {
 			Breed:  "Tabby",
 		})
 	}
-
 	handler := NewCatHandler(mock, nil, nil, "test-bucket").ListCats
 
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	router.GET("/api/v1/cat", handler)
-
-	// First page: limit=2, offset=0
-	req1, err := http.NewRequest("GET", "/api/v1/cat?limit=2&offset=0", nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
+	_tests := []struct {
+		name   string
+		limit  int
+		offset int
+		expect int
+	}{
+		{
+			name:   "one page",
+			limit:  2,
+			offset: 0,
+			expect: 2,
+		},
+		{
+			name:   "page w offset",
+			limit:  2,
+			offset: 2,
+			expect: 2,
+		},
+		{
+			name:   "last page",
+			limit:  50,
+			offset: 4,
+			expect: 1,
+		},
+		{
+			name:   "more than one page",
+			limit:  50,
+			offset: 0,
+			expect: testLen,
+		},
+		{
+			name:   "more than one page w offset",
+			limit:  50,
+			offset: 50,
+			expect: testLen,
+		},
 	}
 
-	w1 := httptest.NewRecorder()
-	router.ServeHTTP(w1, req1)
-
-	if w1.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", w1.Code)
-	}
-
-	var resp1 ListCatsResponse
-	if err := json.Unmarshal(w1.Body.Bytes(), &resp1); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if len(resp1.Cats) != 2 {
-		t.Errorf("expected 2 cats on first page, got %d", len(resp1.Cats))
-	}
-
-	// Second page: limit=2, offset=2
-	req2, err := http.NewRequest("GET", "/api/v1/cat?limit=2&offset=2", nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-
-	w2 := httptest.NewRecorder()
-	router.ServeHTTP(w2, req2)
-
-	if w2.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", w2.Code)
-	}
-
-	var resp2 ListCatsResponse
-	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
-
-	if len(resp2.Cats) != 2 {
-		t.Errorf("expected 2 cats on second page, got %d", len(resp2.Cats))
+	for _, tt := range _tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := tests.TestReq(
+				"GET",
+				"/api/v1/cat/all",
+				"",
+				"",
+				handler,
+				tests.UrlQueryParams{
+					"limit":  {strconv.Itoa(int(tt.limit))},
+					"offset": {strconv.Itoa(int(tt.offset))},
+				},
+			)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+			if res.StatusCode != http.StatusOK {
+				t.Errorf("expected status 200, got %d", res.StatusCode)
+			}
+			var resp1 ListCatsResponse
+			b, _ := io.ReadAll(res.Body)
+			if err := json.Unmarshal(b, &resp1); err != nil {
+				t.Fatalf("failed to unmarshal response: %v: %s", err, string(b))
+			}
+			if len(resp1.Cats) != tt.expect {
+				t.Errorf("expected %d cats on first page, got %d", tt.expect, len(resp1.Cats))
+			}
+		})
 	}
 }
 
@@ -150,7 +148,7 @@ func TestGetCat_Success(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(tests.AuthMiddleware(mock))
+	router.Use(auth.Middleware(mock))
 	router.GET("/api/v1/cat/:id", handler)
 
 	req, err := http.NewRequest("GET", "/api/v1/cat/1", nil)
@@ -195,7 +193,7 @@ func TestGetCat_NotFound(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(tests.AuthMiddleware(mock))
+	router.Use(auth.Middleware(mock))
 	router.GET("/api/v1/cat/:id", handler)
 
 	req, err := http.NewRequest("GET", "/api/v1/cat/999", nil)
@@ -220,7 +218,7 @@ func TestGetCat_Unauthorized(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(tests.AuthMiddleware(mock))
+	router.Use(auth.Middleware(mock))
 	router.GET("/api/v1/cat/:id", handler)
 
 	req, err := http.NewRequest("GET", "/api/v1/cat/1", nil)
@@ -256,7 +254,7 @@ func TestUpdateCat_Success(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(tests.AuthMiddleware(mock))
+	router.Use(auth.Middleware(mock))
 	router.PUT("/api/v1/cat/:id", handler)
 
 	req, err := http.NewRequest("PUT", "/api/v1/cat/1", nil)
@@ -305,7 +303,7 @@ func TestUpdateCat_NotOwner(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(tests.AuthMiddleware(mock))
+	router.Use(auth.Middleware(mock))
 	router.PUT("/api/v1/cat/:id", handler)
 
 	req, err := http.NewRequest("PUT", "/api/v1/cat/1", nil)
@@ -344,7 +342,7 @@ func TestDeleteCat_Success(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(tests.AuthMiddleware(mock))
+	router.Use(auth.Middleware(mock))
 	router.DELETE("/api/v1/cat/:id", handler)
 
 	req, err := http.NewRequest("DELETE", "/api/v1/cat/1", nil)
@@ -382,7 +380,7 @@ func TestDeleteCat_NotOwner(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(tests.AuthMiddleware(mock))
+	router.Use(auth.Middleware(mock))
 	router.DELETE("/api/v1/cat/:id", handler)
 
 	req, err := http.NewRequest("DELETE", "/api/v1/cat/1", nil)

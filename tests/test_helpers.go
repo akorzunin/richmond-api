@@ -1,20 +1,23 @@
-package cat
+package tests
 
 import (
 	"bytes"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"richmond-api/tests"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 )
 
+type UrlQueryParams map[string][]string
+
 // createTestRequest creates a multipart form request with optional file
 func createTestRequest(
-	method, url string,
+	method, _url string,
 	data string,
 	filename string,
+	query UrlQueryParams,
 ) (*http.Request, error) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -53,13 +56,11 @@ func createTestRequest(
 	}
 
 	writer.Close()
-
-	req, err := http.NewRequest(method, url, body)
+	req, err := http.NewRequest(method, _url+"?"+url.Values(query).Encode(), body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-
 	return req, nil
 }
 
@@ -111,8 +112,9 @@ func testHandler(handlerFunc gin.HandlerFunc) *http.Response {
 	req, _ := createTestRequest(
 		"POST",
 		"/api/v1/cat/new",
-		tests.TestCat,
+		TestCat,
 		"cat.jpg",
+		nil,
 	)
 	req.Header.Set("Authorization", "Bearer test-token")
 	w := httptest.NewRecorder()
@@ -120,57 +122,43 @@ func testHandler(handlerFunc gin.HandlerFunc) *http.Response {
 	return w.Result()
 }
 
-// testReq executes a request with the given handler and auth
-func testReq(
+// TestReqNoAuth executes a request without authorization
+func TestReqNoAuth(
 	method, path, data, filename string,
 	handlerFunc gin.HandlerFunc,
-) (*http.Response, error) {
-	return testReqWithAuth(
-		method,
-		path,
-		data,
-		filename,
-		handlerFunc,
-		"test-token",
-	)
-}
-
-// testReqNoAuth executes a request without authorization
-func testReqNoAuth(
-	method, path, data, filename string,
-	handlerFunc gin.HandlerFunc,
+	query UrlQueryParams,
 ) (*http.Response, error) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Handle(method, path, handlerFunc)
 
-	req, _ := createTestRequest(method, path, data, filename)
+	req, _ := createTestRequest(method, path, data, filename, query)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w.Result(), nil
 }
 
-// testReqWithAuth executes a request with specific auth token
-func testReqWithAuth(
+// testReq executes a request with the given handler and auth
+func TestReq(
 	method, path, data, filename string,
 	handlerFunc gin.HandlerFunc,
-	token string,
+	query UrlQueryParams,
 ) (*http.Response, error) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-
+	token := "test-token"
 	router.Use(testAuthMiddleware(token))
 	router.Handle(method, path, handlerFunc)
 
-	req, _ := createTestRequest(method, path, data, filename)
+	req, _ := createTestRequest(method, path, data, filename, query)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w.Result(), nil
 }
 
-// testReqWithFileContent executes a request with custom file content
-func testReqWithFileContent(
+// TestReqWithFileContent executes a request with custom file content
+func TestReqWithFileContent(
 	method, path, data, filename string,
 	fileContent []byte,
 	handlerFunc gin.HandlerFunc,

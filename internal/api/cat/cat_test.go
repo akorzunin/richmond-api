@@ -7,14 +7,6 @@ import (
 	"testing"
 )
 
-const testCatJSON = `{
-	"name": "Whiskers",
-	"birth_date": "2023-01-15",
-	"breed": "Tabby",
-	"habits": "Sleeping",
-	"weight": 4.5
-}`
-
 func TestCreateCat_Success(t *testing.T) {
 	handler := NewCatHandler(
 		tests.NewMockQuerier(),
@@ -22,12 +14,13 @@ func TestCreateCat_Success(t *testing.T) {
 		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
-	res, err := testReq(
+	res, err := tests.TestReq(
 		"POST",
 		"/api/v1/cat/new",
-		testCatJSON,
+		tests.TestCat,
 		"cat.jpg",
 		handler,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
@@ -45,12 +38,13 @@ func TestCreateCat_MissingTitlePhoto(t *testing.T) {
 		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
-	res, err := testReq(
+	res, err := tests.TestReq(
 		"POST",
 		"/api/v1/cat/new",
-		testCatJSON,
+		tests.TestCat,
 		"",
 		handler,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
@@ -67,7 +61,7 @@ func TestCreateCat_MissingData(t *testing.T) {
 		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
-	res, err := testReq("POST", "/api/v1/cat/new", "", "cat.jpg", handler)
+	res, err := tests.TestReq("POST", "/api/v1/cat/new", "", "cat.jpg", handler, nil)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -83,12 +77,13 @@ func TestCreateCat_InvalidJSON(t *testing.T) {
 		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
-	res, err := testReq(
+	res, err := tests.TestReq(
 		"POST",
 		"/api/v1/cat/new",
 		`{"name": "Whiskers", invalid}`,
 		"cat.jpg",
 		handler,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
@@ -106,10 +101,10 @@ func TestCreateCat_InvalidFileType(t *testing.T) {
 		"test-bucket",
 	).CreateCat
 	pdfMagicBytes := []byte{0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34}
-	res, err := testReqWithFileContent(
+	res, err := tests.TestReqWithFileContent(
 		"POST",
 		"/api/v1/cat/new",
-		testCatJSON,
+		tests.TestCat,
 		"document.pdf",
 		pdfMagicBytes,
 		handler,
@@ -130,12 +125,13 @@ func TestCreateCat_Unauthorized(t *testing.T) {
 		tests.NewMockS3Adapter(),
 		"test-bucket",
 	).CreateCat
-	res, err := testReqNoAuth(
+	res, err := tests.TestReqNoAuth(
 		"POST",
 		"/api/v1/cat/new",
-		testCatJSON,
+		tests.TestCat,
 		"cat.jpg",
 		handler,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)

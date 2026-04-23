@@ -17,7 +17,8 @@ const TestCat string = `{
 	"weight": 4.5
 }`
 
-var TestCatRecord = db.Cat{
+var TestCatWhiskers = db.Cat{
+	UserID:    1,
 	CatID:     1,
 	Name:      "Whiskers",
 	BirthDate: pgtype.Date{Time: time.Date(2023, 1, 15, 0, 0, 0, 0, time.UTC)},
@@ -26,22 +27,25 @@ var TestCatRecord = db.Cat{
 	Habits:    "Sleeping",
 }
 
+var TestCatMittens = db.Cat{
+	CatID:  2,
+	UserID: 1,
+	Name:   "Mittens",
+	Breed:  "Siamese",
+	BirthDate: pgtype.Date{
+		Time:  time.Date(2022, 6, 20, 0, 0, 0, 0, time.UTC),
+		Valid: true,
+	},
+	Weight: 3.8,
+	Habits: "Playing",
+}
+
 // CreateCat implements Querier
 func (m *MockQuerier) CreateCat(
 	ctx context.Context,
 	params db.CreateCatParams,
 ) (db.Cat, error) {
-	newCat := db.Cat{
-		CatID:     int32(len(m.cats) + 1),
-		UserID:    params.UserID,
-		Name:      params.Name,
-		BirthDate: params.BirthDate,
-		Breed:     params.Breed,
-		Weight:    params.Weight,
-		Habits:    params.Habits,
-	}
-	m.cats = append(m.cats, newCat)
-	return newCat, nil
+	return db.Cat{}, errors.New("not implemented")
 }
 
 // GetCatByID implements Querier
