@@ -27,6 +27,12 @@ tasks:
       - gotest ./... -v -coverprofile=coverage.out
       - go tool cover -func=coverage.out
 
+  deadcode:
+    desc: Run deadcode check
+    aliases: [dc]
+    cmds:
+      - deadcode -test ./...
+
   setup:
     desc: Setup project
     cmds:

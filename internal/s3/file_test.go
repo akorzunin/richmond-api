@@ -2,59 +2,12 @@ package s3
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"testing"
 
 	"github.com/minio/minio-go/v7"
 )
-
-// mockGetObject simulates an S3 GetObject response.
-type mockGetObject struct {
-	data []byte
-	err  error
-}
-
-func (m *mockGetObject) Read(p []byte) (int, error) {
-	if m.err != nil {
-		return 0, m.err
-	}
-	if len(m.data) == 0 {
-		return 0, io.EOF
-	}
-	n := copy(p, m.data)
-	m.data = m.data[n:]
-	if len(m.data) == 0 {
-		return n, io.EOF
-	}
-	return n, nil
-}
-
-func (m *mockGetObject) Close() error {
-	return nil
-}
-
-// mockClient implements enough of minio.Client for tests.
-type mockClient struct {
-	putObjectErr error
-	getObjectErr error
-	getObjectRet *mockGetObject
-}
-
-func (m *mockClient) PutObject(ctx context.Context, bucket, key string, data io.Reader, size int64, opts minio.PutObjectOptions) (minio.UploadInfo, error) {
-	if m.putObjectErr != nil {
-		return minio.UploadInfo{}, m.putObjectErr
-	}
-	return minio.UploadInfo{}, nil
-}
-
-func (m *mockClient) GetObject(ctx context.Context, bucket, key string, opts minio.GetObjectOptions) (io.ReadCloser, error) {
-	if m.getObjectErr != nil {
-		return nil, m.getObjectErr
-	}
-	return m.getObjectRet, nil
-}
 
 func TestCreateFile(t *testing.T) {
 	tests := []struct {

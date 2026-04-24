@@ -101,27 +101,6 @@ func testAuthMiddleware(token string) gin.HandlerFunc {
 	}
 }
 
-// testHandler executes a handler with auth middleware
-func testHandler(handlerFunc gin.HandlerFunc) *http.Response {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-
-	router.Use(testAuthMiddleware("test-token"))
-	router.Handle("POST", "/api/v1/cat/new", handlerFunc)
-
-	req, _ := createTestRequest(
-		"POST",
-		"/api/v1/cat/new",
-		TestCat,
-		"cat.jpg",
-		nil,
-	)
-	req.Header.Set("Authorization", "Bearer test-token")
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	return w.Result()
-}
-
 // TestReqNoAuth executes a request without authorization
 func TestReqNoAuth(
 	method, path, data, filename string,

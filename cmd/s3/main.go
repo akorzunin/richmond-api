@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"richmond-api/internal/config"
 	"richmond-api/internal/s3"
 
 	"github.com/joho/godotenv"
@@ -51,7 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg, err := s3.NewClientFromEnv()
+	cfg, err := config.NewS3Config()
 	if err != nil {
 		log.Fatalf("Failed to create S3 client: %v", err)
 	}
