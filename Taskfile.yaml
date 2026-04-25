@@ -29,6 +29,8 @@ tasks:
 
   deadcode:
     desc: Run deadcode check
+    preconditions:
+      - sh: type deadcode >/dev/null 2>&1 || go install golang.org/x/tools/cmd/deadcode@latest
     aliases: [dc]
     cmds:
       - deadcode -test ./...

@@ -8,6 +8,7 @@ import (
 	_ "richmond-api/docs"
 	"richmond-api/internal/api/auth"
 	"richmond-api/internal/api/cat"
+	"richmond-api/internal/api/file"
 	h "richmond-api/internal/api/health"
 	"richmond-api/internal/api/tx"
 	"richmond-api/internal/api/user"
@@ -34,6 +35,7 @@ func main() {
 		&s3.S3Adapter{Client: s3Client.Client, Bucket: s3Client.Bucket},
 		s3Client.Bucket,
 	)
+	fileHandler := file.NewFileHandler(s3Client.Client, s3Client.Bucket)
 
 	r := gin.Default()
 	r.GET("/health", h.Health)
@@ -44,6 +46,9 @@ func main() {
 	userGroup.POST("/new", userHandler.Create)
 	userGroup.POST("/login", userHandler.Login)
 	userGroup.GET("", auth.Middleware(queries), userHandler.Get)
+
+	// File API
+	r.GET("/api/v1/file/*key", fileHandler.Download)
 
 	// Cat API
 	catGroup := r.Group("/api/v1/cat")

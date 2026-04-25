@@ -302,6 +302,45 @@ paths:
       summary: Create a new cat
       tags:
       - cat
+  /api/v1/file/{key}:
+    get:
+      description: Downloads a file by key from S3 storage
+      parameters:
+      - description: File key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Quality (original, thumbnail, or preview)
+        enum:
+        - original
+        - thumbnail
+        - preview
+        in: query
+        name: quality
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      summary: Download a file from S3
+      tags:
+      - file
   /api/v1/user:
     get:
       description: Returns user data for authenticated user

@@ -38,6 +38,10 @@ func (s *S3Adapter) Upload(key string, data []byte) (*minio.UploadInfo, error) {
 	return UploadImage(s.Client, s.Bucket, key, data)
 }
 
+func (s *S3Adapter) Download(key string) ([]byte, error) {
+	return GetFile(s.Client, s.Bucket, key)
+}
+
 func (s *S3Adapter) Endpoint() string {
 	return s.Client.EndpointURL().Host
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"path/filepath"
 
 	"github.com/minio/minio-go/v7"
@@ -78,24 +77,4 @@ func UploadImage(
 	}
 
 	return &i, nil
-}
-
-// DownloadImage downloads an image from S3 and returns the bytes.
-func DownloadImage(client *minio.Client, bucket, key string) ([]byte, error) {
-	if err := ValidateParams(client, bucket, key); err != nil {
-		return nil, err
-	}
-	ctx := context.Background()
-	obj, err := client.GetObject(ctx, bucket, key, minio.GetObjectOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get object: %w", err)
-	}
-	defer obj.Close()
-
-	data, err := io.ReadAll(obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read object data: %w", err)
-	}
-
-	return data, nil
 }

@@ -44,11 +44,11 @@ type AppConfig struct {
 func NewS3Config() (*S3Config, error) {
 	godotenv.Load("../.env")
 	_s3 := &S3Config{
-		Endpoint:  getEnv("S3_ENDPOINT", "localhost:9000"),
-		AccessKey: getEnv("S3_ACCESS_KEY", "minioadmin"),
-		SecretKey: getEnv("S3_SECRET_KEY", "minioadmin"),
+		Endpoint:  getEnv("S3_ENDPOINT", "localhost:9900"),
+		AccessKey: getEnv("S3_ACCESS_KEY", "admin"),
+		SecretKey: getEnv("S3_SECRET_KEY", "admin"),
 		UseSSL:    getEnv("S3_USE_SSL", "false") == "true",
-		Bucket:    getEnv("S3_BUCKET", "richmond-api"),
+		Bucket:    getEnv("S3_BUCKET", "main"),
 		Client:    nil,
 	}
 	s3c, err := minio.New(_s3.Endpoint, &minio.Options{
@@ -73,7 +73,13 @@ func NewPgConfig() (*PgConfig, error) {
 	}
 	pool, err := pgxpool.New(
 		context.Background(),
-		fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", _pg.User, _pg.Password, _pg.Address, _pg.Database),
+		fmt.Sprintf(
+			"postgres://%s:%s@%s/%s?sslmode=disable",
+			_pg.User,
+			_pg.Password,
+			_pg.Address,
+			_pg.Database,
+		),
 	)
 	if err != nil {
 		return nil, err
