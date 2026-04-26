@@ -81,6 +81,45 @@ definitions:
       message:
         type: string
     type: object
+  internal_api_post.ListPostsResponse:
+    properties:
+      limit:
+        type: integer
+      offset:
+        type: integer
+      posts:
+        items:
+          $ref: '#/definitions/internal_api_post.PostResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  internal_api_post.PostResponse:
+    properties:
+      body:
+        type: string
+      cat_id:
+        type: string
+      created_at:
+        type: string
+      files:
+        items:
+          $ref: '#/definitions/richmond-api_internal_api_fileutil.FileMetadata'
+        type: array
+      post_id:
+        type: string
+      title:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  internal_api_post.UpdatePostRequest:
+    properties:
+      body:
+        type: string
+      title:
+        type: string
+    type: object
   internal_api_user.CreateRequest:
     properties:
       login:
@@ -115,6 +154,21 @@ definitions:
     properties:
       error:
         type: string
+    type: object
+  richmond-api_internal_api_fileutil.FileMetadata:
+    properties:
+      height:
+        type: integer
+      key:
+        type: string
+      size:
+        type: integer
+      type:
+        type: string
+      url:
+        type: string
+      width:
+        type: integer
     type: object
 info:
   contact: {}
@@ -341,6 +395,194 @@ paths:
       summary: Download a file from S3
       tags:
       - file
+  /api/v1/post/{id}:
+    delete:
+      description: Deletes a post by ID (auth required, must be owner)
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a post
+      tags:
+      - post
+    get:
+      description: Gets a post by ID
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_post.PostResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      summary: Get a post by ID
+      tags:
+      - post
+    put:
+      consumes:
+      - application/json
+      description: Updates a post by ID (auth required, must be owner)
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_post.UpdatePostRequest'
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_post.PostResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a post
+      tags:
+      - post
+  /api/v1/post/all:
+    get:
+      description: Lists posts with pagination (no auth required)
+      parameters:
+      - description: Limit (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_post.ListPostsResponse'
+      summary: List all posts
+      tags:
+      - post
+  /api/v1/post/new:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Creates a new post for a cat with photos (multipart/form-data)
+      parameters:
+      - description: JSON post data
+        in: formData
+        name: data
+        required: true
+        type: string
+      - collectionFormat: csv
+        description: Photo files
+        in: formData
+        items:
+          type: file
+        name: file
+        required: true
+        type: array
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_post.PostResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/richmond-api_internal_api_errors.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new post
+      tags:
+      - post
   /api/v1/user:
     get:
       description: Returns user data for authenticated user

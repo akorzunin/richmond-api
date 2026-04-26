@@ -15,9 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/minio/minio-go/v7"
 
 	e "richmond-api/internal/api/errors"
+	"richmond-api/internal/api/fileutil"
 	"richmond-api/internal/api/tx"
 	"richmond-api/internal/db"
 )
@@ -36,15 +36,8 @@ type Querier interface {
 	WithTx(tx tx.TxRunner) db.TxQuerier
 }
 
-// FileMetadata represents metadata for an uploaded file
-type FileMetadata struct {
-	Key    string `json:"key"`
-	URL    string `json:"url"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Size   int64  `json:"size"`
-	Type   string `json:"type"`
-}
+// FileMetadata is re-exported from fileutil for convenience
+type FileMetadata = fileutil.FileMetadata
 
 // CreateCatRequest represents the JSON data for creating a cat
 type CreateCatRequest struct {
@@ -93,17 +86,28 @@ type ListCatsResponse struct {
 	Total  int32         `json:"total"`
 }
 
-// S3Uploader defines the interface for uploading files to S3
+// S3Uploader defines the interface for uploading files to S3 (original cat.go interface)
+// Note: cat.go uses a different return type (*minio.UploadInfo)
 type S3Uploader interface {
-	Upload(key string, data []byte) (*minio.UploadInfo, error)
+	Upload(key string, data []byte) (interface{}, error)
 	Endpoint() string
 }
 
+// s3Adapter wraps the original S3Uploader to implement fileutil.Uploader
+type s3Adapter struct {
+	catS3 S3Uploader
+}
+
+func (a *s3Adapter) Upload(key string, data []byte) (interface{}, error) {
+	return a.catS3.Upload(key, data)
+}
+
 type CatHandler struct {
-	queries Querier
-	db      tx.Pool
-	s3      S3Uploader
-	bucket  string
+	queries       Querier
+	db            tx.Pool
+	s3            S3Uploader
+	bucket        string
+	fileProcessor *fileutil.FileProcessor
 }
 
 func NewCatHandler(
@@ -112,11 +116,17 @@ func NewCatHandler(
 	s3Adapter S3Uploader,
 	bucket string,
 ) *CatHandler {
+	fp := fileutil.NewFileProcessor(
+		s3Adapter,
+		bucket,
+		"cat/",
+	)
 	return &CatHandler{
-		queries: queries,
-		db:      db,
-		s3:      s3Adapter,
-		bucket:  bucket,
+		queries:       queries,
+		db:            db,
+		s3:            s3Adapter,
+		bucket:        bucket,
+		fileProcessor: fp,
 	}
 }
 
@@ -171,15 +181,6 @@ func catResponseFromDB(cat db.Cat, files []db.File) CatResponse {
 		TitlePhoto:    titlePhoto,
 		GalleryPhotos: galleryPhotos,
 	}
-}
-
-// allowedImageTypes contains the allowed MIME types for images
-var allowedImageTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/jpg":  true,
-	"image/png":  true,
-	"image/gif":  true,
-	"image/webp": true,
 }
 
 // CreateCat handles POST /api/v1/cat/new
@@ -305,7 +306,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	txQueries := h.queries.WithTx(tx)
 
 	// Process title photo (first file)
-	titlePhoto, err := processFile(files[0], userID, h.s3, h.bucket)
+	titlePhoto, err := h.fileProcessor.Process(files[0], userID)
 	if err != nil {
 		tx.Rollback(ctx)
 		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
@@ -337,10 +338,10 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	}
 
 	// Process gallery photos (remaining files, optional)
-	var galleryPhotos []FileMetadata
+	var galleryPhotos []fileutil.FileMetadata
 	var galleryFileIDs []int32
 	for i := 1; i < len(files); i++ {
-		photo, err := processFile(files[i], userID, h.s3, h.bucket)
+		photo, err := h.fileProcessor.Process(files[i], userID)
 		if err != nil {
 			tx.Rollback(ctx)
 			c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: err.Error()})
@@ -491,7 +492,7 @@ func detectImageType(file *multipart.FileHeader) (string, error) {
 	}
 
 	contentType := http.DetectContentType(buffer[:n])
-	if !allowedImageTypes[contentType] {
+	if !fileutil.AllowedImageTypes[contentType] {
 		return "", fmt.Errorf("invalid file type: only images allowed")
 	}
 	return contentType, nil

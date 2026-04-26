@@ -34,7 +34,7 @@ type S3Adapter struct {
 	Bucket string
 }
 
-func (s *S3Adapter) Upload(key string, data []byte) (*minio.UploadInfo, error) {
+func (s *S3Adapter) Upload(key string, data []byte) (interface{}, error) {
 	return UploadImage(s.Client, s.Bucket, key, data)
 }
 

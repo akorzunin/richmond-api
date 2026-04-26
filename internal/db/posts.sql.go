@@ -42,12 +42,177 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 	return i, err
 }
 
+const deletePost = `-- name: DeletePost :one
+DELETE FROM posts WHERE post_id = $1 AND user_id = $2 RETURNING post_id
+`
+
+type DeletePostParams struct {
+	PostID int32 `json:"post_id"`
+	UserID int32 `json:"user_id"`
+}
+
+func (q *Queries) DeletePost(ctx context.Context, arg DeletePostParams) (int32, error) {
+	row := q.db.QueryRow(ctx, deletePost, arg.PostID, arg.UserID)
+	var post_id int32
+	err := row.Scan(&post_id)
+	return post_id, err
+}
+
 const getPostByID = `-- name: GetPostByID :one
 SELECT post_id, user_id, cat_id, title, body, created_at, updated_at FROM posts WHERE post_id = $1
 `
 
 func (q *Queries) GetPostByID(ctx context.Context, postID int32) (Post, error) {
 	row := q.db.QueryRow(ctx, getPostByID, postID)
+	var i Post
+	err := row.Scan(
+		&i.PostID,
+		&i.UserID,
+		&i.CatID,
+		&i.Title,
+		&i.Body,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listPosts = `-- name: ListPosts :many
+SELECT post_id, user_id, cat_id, title, body, created_at, updated_at FROM posts ORDER BY created_at DESC LIMIT $1 OFFSET $2
+`
+
+type ListPostsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, listPosts, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.PostID,
+			&i.UserID,
+			&i.CatID,
+			&i.Title,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPostsByCatID = `-- name: ListPostsByCatID :many
+SELECT post_id, user_id, cat_id, title, body, created_at, updated_at FROM posts WHERE cat_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+`
+
+type ListPostsByCatIDParams struct {
+	CatID  int32 `json:"cat_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListPostsByCatID(ctx context.Context, arg ListPostsByCatIDParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, listPostsByCatID, arg.CatID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.PostID,
+			&i.UserID,
+			&i.CatID,
+			&i.Title,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPostsByUserID = `-- name: ListPostsByUserID :many
+SELECT post_id, user_id, cat_id, title, body, created_at, updated_at FROM posts WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+`
+
+type ListPostsByUserIDParams struct {
+	UserID int32 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListPostsByUserID(ctx context.Context, arg ListPostsByUserIDParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, listPostsByUserID, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.PostID,
+			&i.UserID,
+			&i.CatID,
+			&i.Title,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updatePost = `-- name: UpdatePost :one
+UPDATE posts
+SET title = COALESCE($2, title),
+    body = COALESCE($3, body),
+    updated_at = NOW()
+WHERE post_id = $1 AND user_id = $4
+RETURNING post_id, user_id, cat_id, title, body, created_at, updated_at
+`
+
+type UpdatePostParams struct {
+	PostID int32  `json:"post_id"`
+	Title  string `json:"title"`
+	Body   string `json:"body"`
+	UserID int32  `json:"user_id"`
+}
+
+func (q *Queries) UpdatePost(ctx context.Context, arg UpdatePostParams) (Post, error) {
+	row := q.db.QueryRow(ctx, updatePost,
+		arg.PostID,
+		arg.Title,
+		arg.Body,
+		arg.UserID,
+	)
 	var i Post
 	err := row.Scan(
 		&i.PostID,

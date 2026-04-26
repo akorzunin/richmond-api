@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -10,6 +12,7 @@ import (
 	"richmond-api/internal/api/cat"
 	"richmond-api/internal/api/file"
 	h "richmond-api/internal/api/health"
+	"richmond-api/internal/api/post"
 	"richmond-api/internal/api/tx"
 	"richmond-api/internal/api/user"
 	"richmond-api/internal/config"
@@ -32,7 +35,22 @@ func main() {
 	catHandler := cat.NewCatHandler(
 		&tx.QuerierAdapter{Queries: queries},
 		&tx.PoolAdapter{Pool: pool},
-		&s3.S3Adapter{Client: s3Client.Client, Bucket: s3Client.Bucket},
+		&catS3Adapter{
+			Adapter: &s3.S3Adapter{
+				Client: s3Client.Client,
+				Bucket: s3Client.Bucket,
+			},
+		},
+		s3Client.Bucket,
+	)
+	postHandler := post.NewPostHandler(
+		&tx.QuerierAdapter{Queries: queries},
+		&postS3Adapter{
+			Adapter: &s3.S3Adapter{
+				Client: s3Client.Client,
+				Bucket: s3Client.Bucket,
+			},
+		},
 		s3Client.Bucket,
 	)
 	fileHandler := file.NewFileHandler(s3Client.Client, s3Client.Bucket)
@@ -58,5 +76,41 @@ func main() {
 	catGroup.PUT("/:id", auth.Middleware(queries), catHandler.UpdateCat)
 	catGroup.DELETE("/:id", auth.Middleware(queries), catHandler.DeleteCat)
 
+	// Post API
+	postGroup := r.Group("/api/v1/post")
+	postGroup.GET("/all", postHandler.ListPosts)
+	postGroup.GET("/:id", postHandler.GetPost)
+	postGroup.POST("/new", auth.Middleware(queries), postHandler.CreatePost)
+	postGroup.PUT("/:id", auth.Middleware(queries), postHandler.UpdatePost)
+	postGroup.DELETE("/:id", auth.Middleware(queries), postHandler.DeletePost)
+
 	r.Run(":8080")
+}
+
+// postS3Adapter adapts *s3.S3Adapter to post.S3Uploader
+// Returns interface{} to satisfy fileutil.Uploader interface
+type postS3Adapter struct {
+	Adapter *s3.S3Adapter
+}
+
+func (a *postS3Adapter) Upload(key string, data []byte) (interface{}, error) {
+	_, err := a.Adapter.Upload(key, data)
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Sprintf("http://rustfs:9000/%s/%s", a.Adapter.Bucket, key), nil
+}
+
+// catS3Adapter adapts *s3.S3Adapter to cat.S3Uploader
+// Returns interface{} to satisfy fileutil.Uploader interface
+type catS3Adapter struct {
+	Adapter *s3.S3Adapter
+}
+
+func (a *catS3Adapter) Upload(key string, data []byte) (interface{}, error) {
+	return a.Adapter.Upload(key, data)
+}
+
+func (a *catS3Adapter) Endpoint() string {
+	return a.Adapter.Endpoint()
 }

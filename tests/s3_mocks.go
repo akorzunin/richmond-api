@@ -26,10 +26,10 @@ func NewMockS3Adapter() *MockS3Adapter {
 	}
 }
 
-// Upload is a no-op for testing - overrides the embedded S3Adapter.Upload
+// Upload is a no-op for testing - returns interface{} to satisfy fileutil.Uploader
 func (m *MockS3Adapter) Upload(
 	key string,
 	data []byte,
-) (*minio.UploadInfo, error) {
+) (interface{}, error) {
 	return nil, nil
 }

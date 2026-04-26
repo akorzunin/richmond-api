@@ -60,3 +60,39 @@ func (q *QuerierAdapter) DeleteUserSessions(
 ) error {
 	return q.Queries.DeleteUserSessions(ctx, userID)
 }
+
+// Post-specific methods
+func (q *QuerierAdapter) GetPostByID(
+	ctx context.Context,
+	postID int32,
+) (db.Post, error) {
+	return q.Queries.GetPostByID(ctx, postID)
+}
+
+func (q *QuerierAdapter) ListPosts(
+	ctx context.Context,
+	params db.ListPostsParams,
+) ([]db.Post, error) {
+	return q.Queries.ListPosts(ctx, params)
+}
+
+func (q *QuerierAdapter) CreatePost(
+	ctx context.Context,
+	params db.CreatePostParams,
+) (db.Post, error) {
+	return q.Queries.CreatePost(ctx, params)
+}
+
+func (q *QuerierAdapter) UpdatePost(
+	ctx context.Context,
+	params db.UpdatePostParams,
+) (db.Post, error) {
+	return q.Queries.UpdatePost(ctx, params)
+}
+
+func (q *QuerierAdapter) DeletePost(
+	ctx context.Context,
+	params db.DeletePostParams,
+) (int32, error) {
+	return q.Queries.DeletePost(ctx, params)
+}
