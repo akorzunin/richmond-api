@@ -189,6 +189,23 @@ func (m *MockPostQuerier) CreateFile(
 	return newFile, nil
 }
 
+// GetFilesByPostID implements post.Querier
+func (m *MockPostQuerier) GetFilesByPostID(
+	ctx context.Context,
+	postID pgtype.Int4,
+) ([]db.File, error) {
+	var result []db.File
+	for _, file := range m.files {
+		if file.PostID.Valid && file.PostID.Int32 == postID.Int32 {
+			result = append(result, file)
+		}
+	}
+	if result == nil {
+		result = []db.File{}
+	}
+	return result, nil
+}
+
 // MockS3Uploader implements post.S3Uploader interface for testing
 type MockS3Uploader struct {
 	UploadFunc func(key string, data []byte) (interface{}, error)

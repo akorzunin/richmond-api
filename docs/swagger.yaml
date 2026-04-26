@@ -102,7 +102,7 @@ definitions:
         type: string
       created_at:
         type: string
-      files:
+      photos:
         items:
           $ref: '#/definitions/richmond-api_internal_api_fileutil.FileMetadata'
         type: array

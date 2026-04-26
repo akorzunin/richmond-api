@@ -10,6 +10,7 @@ import (
 	_ "richmond-api/docs"
 	"richmond-api/internal/api/auth"
 	"richmond-api/internal/api/cat"
+	"richmond-api/internal/api/cors"
 	"richmond-api/internal/api/file"
 	h "richmond-api/internal/api/health"
 	"richmond-api/internal/api/post"
@@ -56,6 +57,7 @@ func main() {
 	fileHandler := file.NewFileHandler(s3Client.Client, s3Client.Bucket)
 
 	r := gin.Default()
+	r.Use(cors.Middleware(cfg.AllowedOrigins))
 	r.GET("/health", h.Health)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 

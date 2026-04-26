@@ -37,8 +37,9 @@ func getEnv(key, defaultValue string) string {
 }
 
 type AppConfig struct {
-	S3 *S3Config
-	Pg *PgConfig
+	S3             *S3Config
+	Pg             *PgConfig
+	AllowedOrigins string
 }
 
 func NewS3Config() (*S3Config, error) {
@@ -97,8 +98,10 @@ func NewAppConfig() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	godotenv.Load("../.env")
 	return &AppConfig{
-		S3: _s3,
-		Pg: _pg,
+		S3:             _s3,
+		Pg:             _pg,
+		AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
 	}, nil
 }

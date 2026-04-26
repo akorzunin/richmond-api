@@ -25,6 +25,7 @@ type Querier interface {
 	UpdatePost(ctx context.Context, params db.UpdatePostParams) (db.Post, error)
 	DeletePost(ctx context.Context, params db.DeletePostParams) (int32, error)
 	CreateFile(ctx context.Context, params db.CreateFileParams) (db.File, error)
+	GetFilesByPostID(ctx context.Context, postID pgtype.Int4) ([]db.File, error)
 }
 
 // S3Uploader defines the interface for uploading files to S3
@@ -70,7 +71,7 @@ type PostResponse struct {
 	UserID    int32                   `json:"user_id"`
 	Title     string                  `json:"title"`
 	Body      string                  `json:"body"`
-	Files     []fileutil.FileMetadata `json:"files,omitempty"`
+	Photos    []fileutil.FileMetadata `json:"photos"`
 	CreatedAt string                  `json:"created_at"`
 }
 
@@ -92,10 +93,26 @@ type ListPostsResponse struct {
 }
 
 // postResponseFromDB converts a db.Post to PostResponse
-func postResponseFromDB(post db.Post) PostResponse {
+func postResponseFromDB(post db.Post, files []db.File) PostResponse {
 	var createdAt string
 	if post.CreatedAt.Valid {
 		createdAt = post.CreatedAt.Time.Format("2006-01-02T15:04:05Z")
+	}
+
+	var photos []fileutil.FileMetadata
+	for _, f := range files {
+		photos = append(photos, fileutil.FileMetadata{
+			Key:    f.Key,
+			URL:    f.Url,
+			Width:  int(f.Width),
+			Height: int(f.Height),
+			Size:   f.Size,
+			Type:   f.Type,
+		})
+	}
+	// Initialize empty slice instead of nil for JSON array
+	if photos == nil {
+		photos = []fileutil.FileMetadata{}
 	}
 
 	return PostResponse{
@@ -104,6 +121,7 @@ func postResponseFromDB(post db.Post) PostResponse {
 		UserID:    post.UserID,
 		Title:     post.Title,
 		Body:      post.Body,
+		Photos:    photos,
 		CreatedAt: createdAt,
 	}
 }
@@ -287,7 +305,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		UserID:    post.UserID,
 		Title:     post.Title,
 		Body:      post.Body,
-		Files:     postFiles,
+		Photos:    postFiles,
 		CreatedAt: post.CreatedAt.Time.Format("2006-01-02T15:04:05Z"),
 	})
 }
@@ -334,7 +352,15 @@ func (h *PostHandler) ListPosts(c *gin.Context) {
 	// Build response
 	var postResponses []PostResponse
 	for _, post := range posts {
-		postResponses = append(postResponses, postResponseFromDB(post))
+		files, err := h.queries.GetFilesByPostID(
+			ctx,
+			pgtype.Int4{Int32: post.PostID, Valid: true},
+		)
+		if err != nil {
+			e.InternalError(c, "failed to fetch files: "+err.Error())
+			return
+		}
+		postResponses = append(postResponses, postResponseFromDB(post, files))
 	}
 
 	if postResponses == nil {
@@ -375,7 +401,19 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, postResponseFromDB(post))
+	files, err := h.queries.GetFilesByPostID(
+		ctx,
+		pgtype.Int4{Int32: post.PostID, Valid: true},
+	)
+	if err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			e.ErrorResponse{Error: "failed to fetch files"},
+		)
+		return
+	}
+
+	c.JSON(http.StatusOK, postResponseFromDB(post, files))
 }
 
 // UpdatePost handles PUT /api/v1/post/:id
@@ -470,7 +508,7 @@ func (h *PostHandler) UpdatePost(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, postResponseFromDB(updatedPost))
+	c.JSON(http.StatusOK, postResponseFromDB(updatedPost, []db.File{}))
 }
 
 // DeletePost handles DELETE /api/v1/post/:id

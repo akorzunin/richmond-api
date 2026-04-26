@@ -8,3 +8,6 @@ RETURNING *;
 
 -- name: GetFilesByCatID :many
 SELECT * FROM files WHERE cat_id = $1 ORDER BY created_at;
+
+-- name: GetFilesByPostID :many
+SELECT * FROM files WHERE post_id = $1 ORDER BY created_at;

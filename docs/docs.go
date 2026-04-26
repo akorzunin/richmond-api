@@ -937,7 +937,7 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
-                "files": {
+                "photos": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/richmond-api_internal_api_fileutil.FileMetadata"
