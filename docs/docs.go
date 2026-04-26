@@ -96,6 +96,12 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "100": {
+                        "description": "Cat data model",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_cat.CreateCatRequest"
+                        }
+                    },
                     "201": {
                         "description": "Created",
                         "schema": {
@@ -811,6 +817,26 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
+                },
+                "weight": {
+                    "type": "number"
+                }
+            }
+        },
+        "internal_api_cat.CreateCatRequest": {
+            "type": "object",
+            "properties": {
+                "birthDate": {
+                    "type": "string"
+                },
+                "breed": {
+                    "type": "string"
+                },
+                "habits": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "weight": {
                     "type": "number"

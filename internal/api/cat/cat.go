@@ -42,7 +42,7 @@ type FileMetadata = fileutil.FileMetadata
 // CreateCatRequest represents the JSON data for creating a cat
 type CreateCatRequest struct {
 	Name      string  `json:"name"`
-	BirthDate string  `json:"birth_date"`
+	BirthDate string  `json:"birthDate"`
 	Breed     string  `json:"breed"`
 	Habits    string  `json:"habits"`
 	Weight    float64 `json:"weight"`
@@ -191,6 +191,7 @@ func catResponseFromDB(cat db.Cat, files []db.File) CatResponse {
 // @Produce json
 // @Param data formData string true "JSON cat data"
 // @Param file formData []file true "Photo files (first is title photo)"
+// @Success 100 {object} CreateCatRequest "Cat data model"
 // @Success 201 {object} CreateCatResponse
 // @Failure 400 {object} e.ErrorResponse
 // @Failure 401 {object} e.ErrorResponse
