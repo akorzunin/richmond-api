@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/minio/minio-go/v7"
 )
 
 // TestPost is sample JSON for creating a post
@@ -208,23 +209,22 @@ func (m *MockPostQuerier) GetFilesByPostID(
 
 // MockS3Uploader implements post.S3Uploader interface for testing
 type MockS3Uploader struct {
-	UploadFunc func(key string, data []byte) (interface{}, error)
+	UploadFunc func(key string, data []byte) (*minio.UploadInfo, error)
 }
 
-// Upload implements post.S3Uploader - returns interface{} to satisfy fileutil.Uploader
-func (m *MockS3Uploader) Upload(key string, data []byte) (interface{}, error) {
+func (m *MockS3Uploader) Upload(key string, data []byte) (*minio.UploadInfo, error) {
 	if m.UploadFunc != nil {
 		return m.UploadFunc(key, data)
 	}
 	// Default no-op behavior
-	return "http://test-bucket/" + key, nil
+	return &minio.UploadInfo{Key: key}, nil
 }
 
 // NewMockS3Uploader creates a new MockS3Uploader for testing
 func NewMockS3Uploader() *MockS3Uploader {
 	return &MockS3Uploader{
-		UploadFunc: func(key string, data []byte) (interface{}, error) {
-			return "http://test-bucket/" + key, nil
+		UploadFunc: func(key string, data []byte) (*minio.UploadInfo, error) {
+			return &minio.UploadInfo{Key: key}, nil
 		},
 	}
 }
@@ -232,7 +232,7 @@ func NewMockS3Uploader() *MockS3Uploader {
 // MockS3UploaderWithError creates a mock S3Uploader that returns an error
 func MockS3UploaderWithError(err error) *MockS3Uploader {
 	return &MockS3Uploader{
-		UploadFunc: func(key string, data []byte) (interface{}, error) {
+		UploadFunc: func(key string, data []byte) (*minio.UploadInfo, error) {
 			return nil, err
 		},
 	}

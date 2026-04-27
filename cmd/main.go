@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/gin-gonic/gin"
+	"github.com/minio/minio-go/v7"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
@@ -90,26 +89,22 @@ func main() {
 }
 
 // postS3Adapter adapts *s3.S3Adapter to post.S3Uploader
-// Returns interface{} to satisfy fileutil.Uploader interface
+// Returns *minio.UploadInfo to satisfy fileutil.Uploader interface
 type postS3Adapter struct {
 	Adapter *s3.S3Adapter
 }
 
-func (a *postS3Adapter) Upload(key string, data []byte) (interface{}, error) {
-	_, err := a.Adapter.Upload(key, data)
-	if err != nil {
-		return nil, err
-	}
-	return fmt.Sprintf("http://rustfs:9000/%s/%s", a.Adapter.Bucket, key), nil
+func (a *postS3Adapter) Upload(key string, data []byte) (*minio.UploadInfo, error) {
+	return a.Adapter.Upload(key, data)
 }
 
 // catS3Adapter adapts *s3.S3Adapter to cat.S3Uploader
-// Returns interface{} to satisfy fileutil.Uploader interface
+// Returns *minio.UploadInfo to satisfy fileutil.Uploader interface
 type catS3Adapter struct {
 	Adapter *s3.S3Adapter
 }
 
-func (a *catS3Adapter) Upload(key string, data []byte) (interface{}, error) {
+func (a *catS3Adapter) Upload(key string, data []byte) (*minio.UploadInfo, error) {
 	return a.Adapter.Upload(key, data)
 }
 

@@ -31,10 +31,10 @@ var AllowedImageTypes = map[string]bool{
 }
 
 // Uploader defines the interface for uploading files to S3
-// The return type is interface{} to support both cat.go (returns *minio.UploadInfo)
+// The return type is  to support both cat.go (returns *minio.UploadInfo)
 // and post.go (returns string, error)
 type Uploader interface {
-	Upload(key string, data []byte) (interface{}, error)
+	Upload(key string, data []byte) (*minio.UploadInfo, error)
 }
 
 // FileProcessor handles file processing with configurable S3 key prefix
@@ -141,60 +141,4 @@ func detectImageType(file *multipart.FileHeader) (string, error) {
 type S3Uploader interface {
 	Upload(key string, data []byte) (*minio.UploadInfo, error)
 	Endpoint() string
-}
-
-func ProcessFile(
-	file *multipart.FileHeader,
-	userID int32,
-	uploader S3Uploader,
-	bucket string,
-) (*FileMetadata, error) {
-	// Validate file size (10MB max)
-	const maxFileSize = 10 << 20 // 10MB
-	if file.Size > maxFileSize {
-		return nil, fmt.Errorf("file too large: maximum size is 10MB")
-	}
-
-	// Detect content type using magic bytes
-	contentType, err := detectImageType(file)
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate safe name to prevent path traversal
-	safeName := filepath.Base(file.Filename)
-	if safeName == "." || safeName == "" {
-		safeName = "unknown"
-	}
-
-	// Generate S3 key
-	key := fmt.Sprintf("cat/%d/%s_%s", userID, uuid.New().String(), safeName)
-
-	// Open and read file data
-	src, err := file.Open()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
-	}
-	defer src.Close()
-
-	data, err := io.ReadAll(src)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file data: %w", err)
-	}
-	if _, err := uploader.Upload(key, data); err != nil {
-		return nil, fmt.Errorf("failed to upload to S3: %w", err)
-	}
-	url := fmt.Sprintf(
-		"http://rustfs:9000/%s/%s",
-		bucket,
-		key,
-	)
-	return &FileMetadata{
-		Key:    key,
-		URL:    url,
-		Size:   file.Size,
-		Type:   contentType,
-		Width:  0, // Will be extracted in future
-		Height: 0,
-	}, nil
 }

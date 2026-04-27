@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"richmond-api/internal/api/errors"
 	e "richmond-api/internal/api/errors"
 	"richmond-api/internal/db"
 
@@ -63,12 +62,12 @@ func NewUserHandler(queries Querier) *UserHandler {
 func (h *UserHandler) Create(c *gin.Context) {
 	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		errors.BadRequest(c, "invalid request")
+		e.BadRequest(c, "invalid request")
 		return
 	}
 	_, err := h.queries.GetUserByName(c.Request.Context(), req.Login)
 	if err == nil {
-		errors.Conflict(c, "user already exists")
+		e.Conflict(c, "user already exists")
 		return
 	}
 	hashedPassword, err := bcrypt.GenerateFromPassword(
@@ -76,7 +75,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		bcrypt.DefaultCost,
 	)
 	if err != nil {
-		errors.InternalError(c, "failed to hash password")
+		e.InternalError(c, "failed to hash password")
 		return
 	}
 	user, err := h.queries.CreateUser(c.Request.Context(), db.CreateUserParams{
@@ -84,10 +83,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		UserPass: string(hashedPassword),
 	})
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to create user"},
-		)
+		e.InternalError(c, "failed to create user")
 		return
 	}
 	c.JSON(http.StatusCreated, UserResponse{Login: user.UserName})
@@ -105,16 +101,16 @@ func (h *UserHandler) Create(c *gin.Context) {
 func (h *UserHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		errors.BadRequest(c, "invalid request")
+		e.BadRequest(c, "invalid request")
 		return
 	}
 	user, err := h.queries.GetUserByName(c.Request.Context(), req.Login)
 	if err != nil {
-		errors.Unauthorized(c, "invalid credentials")
+		e.Unauthorized(c, "invalid credentials")
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPass), []byte(req.Password)); err != nil {
-		errors.Unauthorized(c, "invalid credentials")
+		e.Unauthorized(c, "invalid credentials")
 		return
 	}
 	token := uuid.New().String()
@@ -131,7 +127,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 		},
 	)
 	if err != nil {
-		errors.InternalError(c, "failed to create session")
+		e.InternalError(c, "failed to create session")
 		return
 	}
 	c.JSON(http.StatusOK, TokenResponse{Token: token})
@@ -149,12 +145,12 @@ func (h *UserHandler) Login(c *gin.Context) {
 func (h *UserHandler) Get(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		errors.Unauthorized(c, "unauthorized")
+		e.Unauthorized(c, "unauthorized")
 		return
 	}
 	user, err := h.queries.GetUserByID(c.Request.Context(), userID.(int32))
 	if err != nil {
-		errors.NotFound(c, "user not found")
+		e.NotFound(c, "user not found")
 		return
 	}
 	c.JSON(http.StatusOK, UserResponse{Login: user.UserName})

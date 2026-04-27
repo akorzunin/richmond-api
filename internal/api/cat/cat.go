@@ -4,17 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/minio/minio-go/v7"
 
 	e "richmond-api/internal/api/errors"
 	"richmond-api/internal/api/fileutil"
@@ -89,17 +86,8 @@ type ListCatsResponse struct {
 // S3Uploader defines the interface for uploading files to S3 (original cat.go interface)
 // Note: cat.go uses a different return type (*minio.UploadInfo)
 type S3Uploader interface {
-	Upload(key string, data []byte) (interface{}, error)
+	Upload(key string, data []byte) (*minio.UploadInfo, error)
 	Endpoint() string
-}
-
-// s3Adapter wraps the original S3Uploader to implement fileutil.Uploader
-type s3Adapter struct {
-	catS3 S3Uploader
-}
-
-func (a *s3Adapter) Upload(key string, data []byte) (interface{}, error) {
-	return a.catS3.Upload(key, data)
 }
 
 type CatHandler struct {
@@ -279,27 +267,18 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 
 	// Guard clause: ensure required services are available before DB operations
 	if h.db == nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "database not configured"},
-		)
+		e.InternalError(c, "database not configured")
 		return
 	}
 	if h.s3 == nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "S3 client not configured"},
-		)
+		e.InternalError(c, "S3 client not configured")
 		return
 	}
 
 	// Begin transaction
 	tx, err := h.db.Begin(ctx)
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to begin transaction"},
-		)
+		e.InternalError(c, "failed to begin transaction")
 		return
 	}
 	defer tx.Rollback(ctx)
@@ -329,12 +308,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	})
 	if err != nil {
 		tx.Rollback(ctx)
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{
-				Error: fmt.Sprintf("failed to save title photo: %v", err),
-			},
-		)
+		e.InternalError(c, "failed to save title photo: "+err.Error())
 		return
 	}
 
@@ -363,12 +337,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 		})
 		if err != nil {
 			tx.Rollback(ctx)
-			c.JSON(
-				http.StatusInternalServerError,
-				e.ErrorResponse{
-					Error: fmt.Sprintf("failed to save gallery photo: %v", err),
-				},
-			)
+			e.InternalError(c, "failed to save gallery photo: "+err.Error())
 			return
 		}
 
@@ -406,12 +375,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	})
 	if err != nil {
 		tx.Rollback(ctx)
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{
-				Error: fmt.Sprintf("failed to create cat: %v", err),
-			},
-		)
+		e.InternalError(c, "failed to create cat: "+err.Error())
 		return
 	}
 
@@ -424,12 +388,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	)
 	if err != nil {
 		tx.Rollback(ctx)
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{
-				Error: fmt.Sprintf("failed to update title photo: %v", err),
-			},
-		)
+		e.InternalError(c, "failed to update title photo: "+err.Error())
 		return
 	}
 
@@ -443,15 +402,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 		)
 		if err != nil {
 			tx.Rollback(ctx)
-			c.JSON(
-				http.StatusInternalServerError,
-				e.ErrorResponse{
-					Error: fmt.Sprintf(
-						"failed to update gallery photo: %v",
-						err,
-					),
-				},
-			)
+			e.InternalError(c, "failed to update gallery photo: "+err.Error())
 			return
 		}
 	}
@@ -459,10 +410,7 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 	// Commit transaction
 	if err = tx.Commit(ctx); err != nil {
 		tx.Rollback(ctx)
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to commit transaction"},
-		)
+		e.InternalError(c, "failed to commit transaction")
 		return
 	}
 
@@ -475,84 +423,6 @@ func (h *CatHandler) CreateCat(c *gin.Context) {
 		TitlePhoto:    *titlePhoto,
 		GalleryPhotos: galleryPhotos,
 	})
-}
-
-// detectImageType reads magic bytes from file header to detect content type
-func detectImageType(file *multipart.FileHeader) (string, error) {
-	src, err := file.Open()
-	if err != nil {
-		return "", fmt.Errorf("failed to open file: %w", err)
-	}
-	defer src.Close()
-
-	// Read first 512 bytes for magic byte detection
-	buffer := make([]byte, 512)
-	n, err := src.Read(buffer)
-	if err != nil && err != io.EOF {
-		return "", fmt.Errorf("failed to read file: %w", err)
-	}
-
-	contentType := http.DetectContentType(buffer[:n])
-	if !fileutil.AllowedImageTypes[contentType] {
-		return "", fmt.Errorf("invalid file type: only images allowed")
-	}
-	return contentType, nil
-}
-
-func processFile(
-	file *multipart.FileHeader,
-	userID int32,
-	uploader S3Uploader,
-	bucket string,
-) (*FileMetadata, error) {
-	// Validate file size (10MB max)
-	const maxFileSize = 10 << 20 // 10MB
-	if file.Size > maxFileSize {
-		return nil, fmt.Errorf("file too large: maximum size is 10MB")
-	}
-
-	// Detect content type using magic bytes
-	contentType, err := detectImageType(file)
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate safe name to prevent path traversal
-	safeName := filepath.Base(file.Filename)
-	if safeName == "." || safeName == "" {
-		safeName = "unknown"
-	}
-
-	// Generate S3 key
-	key := fmt.Sprintf("cat/%d/%s_%s", userID, uuid.New().String(), safeName)
-
-	// Open and read file data
-	src, err := file.Open()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
-	}
-	defer src.Close()
-
-	data, err := io.ReadAll(src)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file data: %w", err)
-	}
-	if _, err := uploader.Upload(key, data); err != nil {
-		return nil, fmt.Errorf("failed to upload to S3: %w", err)
-	}
-	url := fmt.Sprintf(
-		"http://rustfs:9000/%s/%s",
-		bucket,
-		key,
-	)
-	return &FileMetadata{
-		Key:    key,
-		URL:    url,
-		Size:   file.Size,
-		Type:   contentType,
-		Width:  0, // Will be extracted in future
-		Height: 0,
-	}, nil
 }
 
 // ListCats handles GET /api/v1/cat/all
@@ -776,10 +646,7 @@ func (h *CatHandler) UpdateCat(c *gin.Context) {
 	// Perform update
 	updatedCat, err := h.queries.UpdateCat(ctx, updateParams)
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to update cat"},
-		)
+		e.InternalError(c, "failed to update cat")
 		return
 	}
 
@@ -789,10 +656,7 @@ func (h *CatHandler) UpdateCat(c *gin.Context) {
 		pgtype.Int4{Int32: updatedCat.CatID, Valid: true},
 	)
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to fetch cat files"},
-		)
+		e.InternalError(c, "failed to fetch cat files")
 		return
 	}
 
@@ -818,7 +682,7 @@ func (h *CatHandler) DeleteCat(c *gin.Context) {
 	// Auth check
 	anyUserID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, e.ErrorResponse{Error: "unauthorized"})
+		e.Unauthorized(c, "unauthorized")
 		return
 	}
 	userID := anyUserID.(int32)
@@ -827,14 +691,14 @@ func (h *CatHandler) DeleteCat(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, e.ErrorResponse{Error: "invalid cat id"})
+		e.BadRequest(c, "invalid cat id")
 		return
 	}
 
 	// Fetch cat to check ownership
 	cat, err := h.queries.GetCatByID(ctx, int32(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, e.ErrorResponse{Error: "cat not found"})
+		e.NotFound(c, "cat not found")
 		return
 	}
 
@@ -849,10 +713,7 @@ func (h *CatHandler) DeleteCat(c *gin.Context) {
 		CatID:  cat.CatID,
 		UserID: userID,
 	}); err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to delete cat"},
-		)
+		e.InternalError(c, "failed to delete cat")
 		return
 	}
 

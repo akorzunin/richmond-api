@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/minio/minio-go/v7"
 
 	e "richmond-api/internal/api/errors"
 	"richmond-api/internal/api/fileutil"
@@ -31,7 +32,7 @@ type Querier interface {
 // S3Uploader defines the interface for uploading files to S3
 // This is an alias to fileutil.Uploader interface
 type S3Uploader interface {
-	Upload(key string, data []byte) (interface{}, error)
+	Upload(key string, data []byte) (*minio.UploadInfo, error)
 }
 
 // PostHandler handles post-related API endpoints
@@ -219,10 +220,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 
 	// Guard clause: ensure required services are available before operations
 	if h.s3 == nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "S3 client not configured"},
-		)
+		e.InternalError(c, "S3 client not configured")
 		return
 	}
 
@@ -234,10 +232,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		Body:   req.Body,
 	})
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to create post"},
-		)
+		e.InternalError(c, "failed to create post")
 		return
 	}
 
@@ -279,12 +274,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 					PostID: post.PostID,
 					UserID: userID,
 				})
-				c.JSON(
-					http.StatusInternalServerError,
-					e.ErrorResponse{
-						Error: fmt.Sprintf("failed to save file: %v", err),
-					},
-				)
+				e.InternalError(c, "failed to save file: "+err.Error())
 				return
 			}
 
@@ -406,10 +396,7 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 		pgtype.Int4{Int32: post.PostID, Valid: true},
 	)
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to fetch files"},
-		)
+		e.InternalError(c, "failed to fetch files")
 		return
 	}
 
@@ -501,10 +488,7 @@ func (h *PostHandler) UpdatePost(c *gin.Context) {
 	// Perform update
 	updatedPost, err := h.queries.UpdatePost(ctx, updateParams)
 	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to update post"},
-		)
+		e.InternalError(c, "failed to update post")
 		return
 	}
 
@@ -561,10 +545,7 @@ func (h *PostHandler) DeletePost(c *gin.Context) {
 		PostID: post.PostID,
 		UserID: userID,
 	}); err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			e.ErrorResponse{Error: "failed to delete post"},
-		)
+		e.InternalError(c, "failed to delete post")
 		return
 	}
 
