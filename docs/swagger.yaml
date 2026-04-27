@@ -1,15 +1,15 @@
 definitions:
   internal_api_cat.CatResponse:
     properties:
-      birth_date:
+      birthDate:
         type: string
       breed:
         type: string
-      cat_id:
+      catId:
         type: integer
-      created_at:
+      createdAt:
         type: string
-      gallery_photos:
+      galleryPhotos:
         items:
           $ref: '#/definitions/internal_api_cat.FileMetadata'
         type: array
@@ -17,9 +17,9 @@ definitions:
         type: string
       name:
         type: string
-      title_photo:
+      titlePhoto:
         $ref: '#/definitions/internal_api_cat.FileMetadata'
-      user_id:
+      userId:
         type: integer
       weight:
         type: number
@@ -39,13 +39,13 @@ definitions:
     type: object
   internal_api_cat.CreateCatResponse:
     properties:
-      cat_id:
+      catId:
         type: string
-      gallery_photos:
+      galleryPhotos:
         items:
           $ref: '#/definitions/internal_api_cat.FileMetadata'
         type: array
-      title_photo:
+      titlePhoto:
         $ref: '#/definitions/internal_api_cat.FileMetadata'
     type: object
   internal_api_cat.FileMetadata:
@@ -78,7 +78,7 @@ definitions:
     type: object
   internal_api_cat.UpdateCatRequest:
     properties:
-      birth_date:
+      birthDate:
         type: string
       breed:
         type: string
@@ -111,19 +111,19 @@ definitions:
     properties:
       body:
         type: string
-      cat_id:
+      catId:
         type: string
-      created_at:
+      createdAt:
         type: string
       photos:
         items:
           $ref: '#/definitions/richmond-api_internal_api_fileutil.FileMetadata'
         type: array
-      post_id:
+      postId:
         type: string
       title:
         type: string
-      user_id:
+      userId:
         type: integer
     type: object
   internal_api_post.UpdatePostRequest:

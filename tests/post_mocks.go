@@ -11,7 +11,7 @@ import (
 
 // TestPost is sample JSON for creating a post
 const TestPost string = `{
-	"cat_id": "1",
+	"catId": "1",
 	"title": "Whiskers playing",
 	"body": "Look at this cute cat!"
 }`

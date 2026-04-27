@@ -11,7 +11,7 @@ import (
 
 const TestCat string = `{
 	"name": "Whiskers",
-	"birth_date": "2023-01-15",
+	"birthDate": "2023-01-15",
 	"breed": "Tabby",
 	"habits": "Sleeping",
 	"weight": 4.5

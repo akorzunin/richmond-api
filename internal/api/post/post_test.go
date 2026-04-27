@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	testPostData      = `{"cat_id":"1","title":"Whiskers playing","body":"Look at this cute cat!"}`
-	testPostDataBlank = `{"cat_id":"1","title":"  ","body":""}`
-	testInvalidJSON   = `{"cat_id": "1", invalid}`
+	testPostData      = `{"catId":"1","title":"Whiskers playing","body":"Look at this cute cat!"}`
+	testPostDataBlank = `{"catId":"1","title":"  ","body":""}`
+	testInvalidJSON   = `{"catId": "1", invalid}`
 )
 
 // testTime is a consistent time for testing
@@ -193,7 +193,7 @@ func TestCreatePost_CatNotFound(t *testing.T) {
 	req, err := createMultipartRequest(
 		"POST",
 		"/api/v1/post/new",
-		`{"cat_id":"999","title":"Test","body":"Body"}`,
+		`{"catId":"999","title":"Test","body":"Body"}`,
 		"",
 	)
 	if err != nil {
@@ -230,7 +230,7 @@ func TestCreatePost_CatNotOwned(t *testing.T) {
 	req, err := createMultipartRequest(
 		"POST",
 		"/api/v1/post/new",
-		`{"cat_id":"99","title":"Test","body":"Body"}`,
+		`{"catId":"99","title":"Test","body":"Body"}`,
 		"",
 	)
 	if err != nil {

@@ -59,20 +59,20 @@ func NewPostHandler(
 
 // CreatePostRequest represents the JSON data for creating a post
 type CreatePostRequest struct {
-	CatID string `json:"cat_id"`
+	CatID string `json:"catId"`
 	Title string `json:"title"`
 	Body  string `json:"body"`
 }
 
 // PostResponse represents a post
 type PostResponse struct {
-	PostID    string                  `json:"post_id"`
-	CatID     string                  `json:"cat_id"`
-	UserID    int32                   `json:"user_id"`
+	PostID    string                  `json:"postId"`
+	CatID     string                  `json:"catId"`
+	UserID    int32                   `json:"userId"`
 	Title     string                  `json:"title"`
 	Body      string                  `json:"body"`
 	Photos    []fileutil.FileMetadata `json:"photos"`
-	CreatedAt string                  `json:"created_at"`
+	CreatedAt string                  `json:"createdAt"`
 }
 
 // FileMetadata is re-exported from fileutil for convenience

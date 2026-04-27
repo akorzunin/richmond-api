@@ -50,29 +50,29 @@ type CreateCatRequest struct {
 
 // CreateCatResponse represents the response after creating a cat
 type CreateCatResponse struct {
-	CatID         string         `json:"cat_id"`
-	TitlePhoto    FileMetadata   `json:"title_photo"`
-	GalleryPhotos []FileMetadata `json:"gallery_photos"`
+	CatID         string         `json:"catId"`
+	TitlePhoto    FileMetadata   `json:"titlePhoto"`
+	GalleryPhotos []FileMetadata `json:"galleryPhotos"`
 }
 
 // CatResponse represents a cat with photos
 type CatResponse struct {
-	CatID         int32          `json:"cat_id"`
-	UserID        int32          `json:"user_id"`
+	CatID         int32          `json:"catId"`
+	UserID        int32          `json:"userId"`
 	Name          string         `json:"name"`
-	BirthDate     string         `json:"birth_date"`
+	BirthDate     string         `json:"birthDate"`
 	Breed         string         `json:"breed"`
 	Weight        float64        `json:"weight"`
 	Habits        string         `json:"habits"`
-	CreatedAt     string         `json:"created_at"`
-	TitlePhoto    FileMetadata   `json:"title_photo"`
-	GalleryPhotos []FileMetadata `json:"gallery_photos"`
+	CreatedAt     string         `json:"createdAt"`
+	TitlePhoto    FileMetadata   `json:"titlePhoto"`
+	GalleryPhotos []FileMetadata `json:"galleryPhotos"`
 }
 
 // UpdateCatRequest represents the JSON data for updating a cat (all fields optional)
 type UpdateCatRequest struct {
 	Name      *string  `json:"name,omitempty"`
-	BirthDate *string  `json:"birth_date,omitempty"`
+	BirthDate *string  `json:"birthDate,omitempty"`
 	Breed     *string  `json:"breed,omitempty"`
 	Habits    *string  `json:"habits,omitempty"`
 	Weight    *float64 `json:"weight,omitempty"`

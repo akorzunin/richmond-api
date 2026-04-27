@@ -788,19 +788,19 @@ const docTemplate = `{
         "internal_api_cat.CatResponse": {
             "type": "object",
             "properties": {
-                "birth_date": {
+                "birthDate": {
                     "type": "string"
                 },
                 "breed": {
                     "type": "string"
                 },
-                "cat_id": {
+                "catId": {
                     "type": "integer"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
-                "gallery_photos": {
+                "galleryPhotos": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_api_cat.FileMetadata"
@@ -812,10 +812,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "title_photo": {
+                "titlePhoto": {
                     "$ref": "#/definitions/internal_api_cat.FileMetadata"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 },
                 "weight": {
@@ -846,16 +846,16 @@ const docTemplate = `{
         "internal_api_cat.CreateCatResponse": {
             "type": "object",
             "properties": {
-                "cat_id": {
+                "catId": {
                     "type": "string"
                 },
-                "gallery_photos": {
+                "galleryPhotos": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_api_cat.FileMetadata"
                     }
                 },
-                "title_photo": {
+                "titlePhoto": {
                     "$ref": "#/definitions/internal_api_cat.FileMetadata"
                 }
             }
@@ -906,7 +906,7 @@ const docTemplate = `{
         "internal_api_cat.UpdateCatRequest": {
             "type": "object",
             "properties": {
-                "birth_date": {
+                "birthDate": {
                     "type": "string"
                 },
                 "breed": {
@@ -957,10 +957,10 @@ const docTemplate = `{
                 "body": {
                     "type": "string"
                 },
-                "cat_id": {
+                "catId": {
                     "type": "string"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "photos": {
@@ -969,13 +969,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/richmond-api_internal_api_fileutil.FileMetadata"
                     }
                 },
-                "post_id": {
+                "postId": {
                     "type": "string"
                 },
                 "title": {
                     "type": "string"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 }
             }
